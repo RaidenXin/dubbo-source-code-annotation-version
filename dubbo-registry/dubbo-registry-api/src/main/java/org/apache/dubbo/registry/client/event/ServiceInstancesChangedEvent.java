@@ -20,9 +20,9 @@ import org.apache.dubbo.event.Event;
 import org.apache.dubbo.registry.client.ServiceInstance;
 import org.apache.dubbo.registry.client.event.listener.ServiceInstancesChangedListener;
 
-import java.util.List;
+import java.util.Collection;
 
-import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableCollection;
 
 /**
  * An event raised after the {@link ServiceInstance instances} of one service has been changed.
@@ -34,17 +34,17 @@ public class ServiceInstancesChangedEvent extends Event {
 
     private final String serviceName;
 
-    private final List<ServiceInstance> serviceInstances;
+    private final Collection<ServiceInstance> serviceInstances;
 
     /**
      * @param serviceName      The name of service that was changed
      * @param serviceInstances all {@link ServiceInstance service instances}
      * @throws IllegalArgumentException if source is null.
      */
-    public ServiceInstancesChangedEvent(String serviceName, List<ServiceInstance> serviceInstances) {
+    public ServiceInstancesChangedEvent(String serviceName, Collection<ServiceInstance> serviceInstances) {
         super(serviceName);
         this.serviceName = serviceName;
-        this.serviceInstances = unmodifiableList(serviceInstances);
+        this.serviceInstances = unmodifiableCollection(serviceInstances);
     }
 
     /**
@@ -58,7 +58,7 @@ public class ServiceInstancesChangedEvent extends Event {
     /**
      * @return all {@link ServiceInstance service instances}
      */
-    public List<ServiceInstance> getServiceInstances() {
+    public Collection<ServiceInstance> getServiceInstances() {
         return serviceInstances;
     }
 

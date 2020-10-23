@@ -144,6 +144,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
     @Override
     public void doSubscribe(final URL url, final NotifyListener listener) {
         try {
+            //对 <dubbo:reference/> 标签 中 interface 属性 为 * 的处理
             if (ANY_VALUE.equals(url.getServiceInterface())) {
                 String root = toRootPath();
                 ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.computeIfAbsent(url, k -> new ConcurrentHashMap<>());
@@ -168,16 +169,23 @@ public class ZookeeperRegistry extends FailbackRegistry {
                     }
                 }
             } else {
+                //对 <dubbo:reference/> 标签 中 interface 属性 为接口全名称的处理
+                //定义一个 URL 列表 用来存储 所以分类节点的子节点列表
                 List<URL> urls = new ArrayList<>();
                 for (String path : toCategoriesPath(url)) {
                     ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.computeIfAbsent(url, k -> new ConcurrentHashMap<>());
                     ChildListener zkListener = listeners.computeIfAbsent(listener, k -> (parentPath, currentChilds) -> ZookeeperRegistry.this.notify(url, k, toUrlsWithEmpty(url, parentPath, currentChilds)));
+                    //创建节点
                     zkClient.create(path, false);
+                    //在zk上为相应节点添加子节点列表的变更 watcher 监听
+                    //返回值是相应节点的子节点列表
                     List<String> children = zkClient.addChildListener(path, zkListener);
                     if (children != null) {
+                        //如果没有子节点的 也会创建一个 empty 协议的 URL
                         urls.addAll(toUrlsWithEmpty(url, path, children));
                     }
                 }
+                //主动调用各个节点的 watcher 的 notify 方法更新属性
                 notify(url, listener, urls);
             }
         } catch (Throwable e) {

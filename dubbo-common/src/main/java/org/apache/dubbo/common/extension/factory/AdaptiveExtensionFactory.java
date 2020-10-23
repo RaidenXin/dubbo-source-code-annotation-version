@@ -43,8 +43,11 @@ public class AdaptiveExtensionFactory implements ExtensionFactory {
 
     @Override
     public <T> T getExtension(Class<T> type, String name) {
+        //遍历 spiExtensionFactory 和 springExtensionFactory
+        //springExtensionFactory 不会加载 SPI标识的 会返回 null
         for (ExtensionFactory factory : factories) {
             T extension = factory.getExtension(type, name);
+            //这里判断空是因为 SpringExtensionFactory 不加载会返回空
             if (extension != null) {
                 return extension;
             }

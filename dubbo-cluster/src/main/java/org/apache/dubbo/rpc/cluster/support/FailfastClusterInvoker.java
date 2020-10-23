@@ -34,6 +34,11 @@ import java.util.List;
  * <a href="http://en.wikipedia.org/wiki/Fail-fast">Fail-fast</a>
  *
  */
+
+/**
+ * 集群容错 快速失败策略 消费者只发起一次调用，如果失败则立刻报错，通常用于非幂等性的操作，比如新增记录
+ * @param <T>
+ */
 public class FailfastClusterInvoker<T> extends AbstractClusterInvoker<T> {
 
     public FailfastClusterInvoker(Directory<T> directory) {
@@ -43,8 +48,10 @@ public class FailfastClusterInvoker<T> extends AbstractClusterInvoker<T> {
     @Override
     public Result doInvoke(Invocation invocation, List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
         checkInvokers(invokers, invocation);
+        //负载均衡
         Invoker<T> invoker = select(loadbalance, invocation, invokers, null);
         try {
+            //远程调用
             return invoker.invoke(invocation);
         } catch (Throwable e) {
             if (e instanceof RpcException && ((RpcException) e).isBiz()) { // biz exception.

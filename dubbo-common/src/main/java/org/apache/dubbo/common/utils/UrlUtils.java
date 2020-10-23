@@ -165,11 +165,14 @@ public class UrlUtils {
         if (address == null || address.length() == 0) {
             return null;
         }
+        //使用分号或者竖线分隔address,分隔出多个注册中心地址
+        //<dubbo:registry/> 的 address的属性值
         String[] addresses = REGISTRY_SPLIT_PATTERN.split(address);
         if (addresses == null || addresses.length == 0) {
             return null; //here won't be empty
         }
         List<URL> registries = new ArrayList<URL>();
+        //将地址和参数解析成URL
         for (String addr : addresses) {
             registries.add(parseURL(addr, defaults));
         }

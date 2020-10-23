@@ -168,6 +168,7 @@ public class ConditionRouter extends AbstractRouter {
     @Override
     public <T> List<Invoker<T>> route(List<Invoker<T>> invokers, URL url, Invocation invocation)
             throws RpcException {
+        //配置 当前路由规则 是否生效
         if (!enabled) {
             return invokers;
         }
@@ -176,19 +177,33 @@ public class ConditionRouter extends AbstractRouter {
             return invokers;
         }
         try {
+            // 先对服务消费者条件进行匹配，如果匹配失败，表明服务消费者 url 不符合匹配规则，
+            // 无需进行后续匹配，直接返回 Invoker 列表即可。比如下面的规则：
+            //     host = 10.20.153.10 => host = 10.0.0.10
+            // 这条路由规则希望 IP 为 10.20.153.10 的服务消费者调用 IP 为 10.0.0.10 机器上的服务。
+            // 当消费者 ip 为 10.20.153.11 时，matchWhen 返回 false，表明当前这条路由规则不适用于
+            // 当前的服务消费者，此时无需再进行后续匹配，直接返回即可。
             if (!matchWhen(url, invocation)) {
                 return invokers;
             }
             List<Invoker<T>> result = new ArrayList<Invoker<T>>();
+            // thenCondition 中存放的是 箭头（=>）油车部分,即对提供者的过滤条件
+            // 服务提供者匹配条件未配置，表明对指定的服务消费者禁用服务，也就是服务消费者在黑名单中,无法获得任何服务提供者对象
             if (thenCondition == null) {
                 logger.warn("The current consumer in the service blacklist. consumer: " + NetUtils.getLocalHost() + ", service: " + url.getServiceKey());
                 return result;
             }
+            // 这里可以简单的把 Invoker 理解为服务提供者代理实例
+            // 现在使用服务提供者匹配规则对 Invoker 列表进行匹配
             for (Invoker<T> invoker : invokers) {
+                // 若匹配成功，表明当前 Invoker 符合服务提供者匹配规则。
+                // 此时将 Invoker 添加到 result 列表中
                 if (matchThen(invoker.getUrl(), url)) {
                     result.add(invoker);
                 }
             }
+            // 返回匹配结果，如果 result 为空列表，且 force = true，表示强制返回空列表，
+            // 否则路由结果为空的路由规则将自动失效
             if (!result.isEmpty()) {
                 return result;
             } else if (force) {
@@ -198,6 +213,7 @@ public class ConditionRouter extends AbstractRouter {
         } catch (Throwable t) {
             logger.error("Failed to execute condition router rule: " + getUrl() + ", invokers: " + invokers + ", cause: " + t.getMessage(), t);
         }
+        //此时 force = false 路由规则失效 返回全部 代理实例
         return invokers;
     }
 
@@ -214,14 +230,20 @@ public class ConditionRouter extends AbstractRouter {
     }
 
     boolean matchWhen(URL url, Invocation invocation) {
-        return CollectionUtils.isEmptyMap(whenCondition) || matchCondition(whenCondition, url, null, invocation);
+        // 服务消费者条件为 null 或空，均返回 true，比如：
+        //     => host != 172.22.3.91
+        // 表示所有的服务消费者都不得调用 IP 为 172.22.3.91 的机器上的服务
+        return CollectionUtils.isEmptyMap(whenCondition)
+                || matchCondition(whenCondition, url, null, invocation);// 进行条件匹配
     }
 
     private boolean matchThen(URL url, URL param) {
+        // 服务提供者条件为 null 或空，表示禁用服务
         return CollectionUtils.isNotEmptyMap(thenCondition) && matchCondition(thenCondition, url, param, null);
     }
 
     private boolean matchCondition(Map<String, MatchPair> condition, URL url, URL param, Invocation invocation) {
+        // 将服务提供者或消费者 url 转成 Map
         Map<String, String> sample = url.toMap();
         boolean result = false;
         for (Map.Entry<String, MatchPair> matchPair : condition.entrySet()) {

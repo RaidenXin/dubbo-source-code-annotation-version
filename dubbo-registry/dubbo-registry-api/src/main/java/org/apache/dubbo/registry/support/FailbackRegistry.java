@@ -21,6 +21,7 @@ import org.apache.dubbo.common.timer.HashedWheelTimer;
 import org.apache.dubbo.common.utils.CollectionUtils;
 import org.apache.dubbo.common.utils.NamedThreadFactory;
 import org.apache.dubbo.registry.NotifyListener;
+import org.apache.dubbo.registry.retry.FailedNotifiedTask;
 import org.apache.dubbo.registry.retry.FailedRegisteredTask;
 import org.apache.dubbo.registry.retry.FailedSubscribedTask;
 import org.apache.dubbo.registry.retry.FailedUnregisteredTask;
@@ -56,6 +57,8 @@ public abstract class FailbackRegistry extends AbstractRegistry {
 
     private final ConcurrentMap<Holder, FailedUnsubscribedTask> failedUnsubscribed = new ConcurrentHashMap<Holder, FailedUnsubscribedTask>();
 
+    private final ConcurrentMap<Holder, FailedNotifiedTask> failedNotified = new ConcurrentHashMap<Holder, FailedNotifiedTask>();
+
     /**
      * The time in milliseconds the retryExecutor will wait
      */
@@ -88,6 +91,11 @@ public abstract class FailbackRegistry extends AbstractRegistry {
     public void removeFailedUnsubscribedTask(URL url, NotifyListener listener) {
         Holder h = new Holder(url, listener);
         failedUnsubscribed.remove(h);
+    }
+
+    public void removeFailedNotifiedTask(URL url, NotifyListener listener) {
+        Holder h = new Holder(url, listener);
+        failedNotified.remove(h);
     }
 
     private void addFailedRegistered(URL url) {
@@ -151,6 +159,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
             f.cancel();
         }
         removeFailedUnsubscribed(url, listener);
+        removeFailedNotified(url, listener);
     }
 
     private void addFailedUnsubscribed(URL url, NotifyListener listener) {
@@ -175,6 +184,28 @@ public abstract class FailbackRegistry extends AbstractRegistry {
         }
     }
 
+    private void addFailedNotified(URL url, NotifyListener listener, List<URL> urls) {
+        Holder h = new Holder(url, listener);
+        FailedNotifiedTask newTask = new FailedNotifiedTask(url, listener);
+        FailedNotifiedTask f = failedNotified.putIfAbsent(h, newTask);
+        if (f == null) {
+            // never has a retry task. then start a new task for retry.
+            newTask.addUrlToRetry(urls);
+            retryTimer.newTimeout(newTask, retryPeriod, TimeUnit.MILLISECONDS);
+        } else {
+            // just add urls which needs retry.
+            newTask.addUrlToRetry(urls);
+        }
+    }
+
+    private void removeFailedNotified(URL url, NotifyListener listener) {
+        Holder h = new Holder(url, listener);
+        FailedNotifiedTask f = failedNotified.remove(h);
+        if (f != null) {
+            f.cancel();
+        }
+    }
+
     ConcurrentMap<URL, FailedRegisteredTask> getFailedRegistered() {
         return failedRegistered;
     }
@@ -191,6 +222,9 @@ public abstract class FailbackRegistry extends AbstractRegistry {
         return failedUnsubscribed;
     }
 
+    ConcurrentMap<Holder, FailedNotifiedTask> getFailedNotified() {
+        return failedNotified;
+    }
 
     @Override
     public void register(URL url) {
@@ -292,10 +326,13 @@ public abstract class FailbackRegistry extends AbstractRegistry {
 
     @Override
     public void subscribe(URL url, NotifyListener listener) {
+        //添加已订阅信息缓存
         super.subscribe(url, listener);
+        //删除 已经失败的 订阅信息缓存
         removeFailedSubscribed(url, listener);
         try {
             // Sending a subscription request to the server side
+            //真正的想注册中心 向服务器端发送订阅请求
             doSubscribe(url, listener);
         } catch (Exception e) {
             Throwable t = e;
@@ -363,8 +400,9 @@ public abstract class FailbackRegistry extends AbstractRegistry {
         try {
             doNotify(url, listener, urls);
         } catch (Exception t) {
-            // Record a failed registration request to a failed list
-            logger.error("Failed to notify addresses for subscribe " + url + ", cause: " + t.getMessage(), t);
+            // Record a failed registration request to a failed list, retry regularly
+            addFailedNotified(url, listener, urls);
+            logger.error("Failed to notify for subscribe " + url + ", waiting for retry, cause: " + t.getMessage(), t);
         }
     }
 

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.apache.dubbo.common.constants.RegistryConstants.EMPTY_PROTOCOL;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class MulticastRegistryTest {
 
     private String service = "org.apache.dubbo.test.injvmServie";
-    private URL registryUrl = URL.valueOf("multicast://239.239.239.239/");
+    private URL registryUrl = URL.valueOf("multicast://239.255.255.255/");
     private URL serviceUrl = URL.valueOf("dubbo://" + NetUtils.getLocalHost() + "/" + service
             + "?methods=test1,test2");
     private URL adminUrl = URL.valueOf("dubbo://" + NetUtils.getLocalHost() + "/*");
@@ -80,7 +79,7 @@ public class MulticastRegistryTest {
     @Test
     public void testGetCustomPort() {
         int port = NetUtils.getAvailablePort();
-        URL customPortUrl = URL.valueOf("multicast://239.239.239.239:" + port);
+        URL customPortUrl = URL.valueOf("multicast://239.255.255.255:" + port);
         MulticastRegistry multicastRegistry = new MulticastRegistry(customPortUrl);
         assertThat(multicastRegistry.getUrl().getPort(), is(port));
     }
@@ -133,20 +132,15 @@ public class MulticastRegistryTest {
     @Test
     public void testSubscribe() {
         // verify listener
-        final URL[] notifyUrl = new URL[1];
-        for (int i = 0; i < 10; i++) {
-            registry.register(serviceUrl);
-            registry.subscribe(consumerUrl, urls -> {
-                notifyUrl[0] = urls.get(0);
+        registry.subscribe(consumerUrl, new NotifyListener() {
+            @Override
+            public void notify(List<URL> urls) {
+                assertEquals(serviceUrl.toFullString(), urls.get(0).toFullString());
 
                 Map<URL, Set<NotifyListener>> subscribed = registry.getSubscribed();
                 assertEquals(consumerUrl, subscribed.keySet().iterator().next());
-            });
-            if (!EMPTY_PROTOCOL.equalsIgnoreCase(notifyUrl[0].getProtocol())) {
-                break;
             }
-        }
-        assertEquals(serviceUrl.toFullString(), notifyUrl[0].toFullString());
+        });
     }
 
     /**

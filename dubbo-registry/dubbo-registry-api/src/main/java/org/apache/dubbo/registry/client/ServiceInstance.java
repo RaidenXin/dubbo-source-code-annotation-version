@@ -55,8 +55,6 @@ public interface ServiceInstance extends Serializable {
      */
     Integer getPort();
 
-    String getAddress();
-
     /**
      * The enable status of the registered service instance.
      *
@@ -83,10 +81,6 @@ public interface ServiceInstance extends Serializable {
      * @return non-null, mutable and unsorted {@link Map}
      */
     Map<String, String> getMetadata();
-
-    Map<String, String> getExtendParams();
-
-    Map<String, String> getAllParams();
 
     /**
      * Get the value of metadata by the specified name
@@ -120,7 +114,5 @@ public interface ServiceInstance extends Serializable {
      * @return if equals , return <code>true</code>, or <code>false</code>
      */
     boolean equals(Object another);
-
-    InstanceAddressURL toURL();
 
 }

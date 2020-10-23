@@ -17,6 +17,7 @@
 package org.apache.dubbo.registry.integration;
 
 import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.URLBuilder;
 import org.apache.dubbo.common.Version;
 import org.apache.dubbo.common.config.configcenter.DynamicConfiguration;
 import org.apache.dubbo.common.extension.ExtensionLoader;
@@ -29,14 +30,18 @@ import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.common.utils.UrlUtils;
 import org.apache.dubbo.registry.AddressListener;
 import org.apache.dubbo.registry.NotifyListener;
+import org.apache.dubbo.registry.Registry;
 import org.apache.dubbo.remoting.Constants;
 import org.apache.dubbo.rpc.Invocation;
 import org.apache.dubbo.rpc.Invoker;
 import org.apache.dubbo.rpc.Protocol;
 import org.apache.dubbo.rpc.RpcException;
+import org.apache.dubbo.rpc.cluster.Cluster;
 import org.apache.dubbo.rpc.cluster.Configurator;
 import org.apache.dubbo.rpc.cluster.Router;
 import org.apache.dubbo.rpc.cluster.RouterChain;
+import org.apache.dubbo.rpc.cluster.RouterFactory;
+import org.apache.dubbo.rpc.cluster.directory.AbstractDirectory;
 import org.apache.dubbo.rpc.cluster.directory.StaticDirectory;
 import org.apache.dubbo.rpc.cluster.governance.GovernanceRuleRepository;
 import org.apache.dubbo.rpc.cluster.support.ClusterUtils;
@@ -55,11 +60,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.apache.dubbo.common.constants.CommonConstants.ANY_VALUE;
 import static org.apache.dubbo.common.constants.CommonConstants.DISABLED_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.DUBBO_PROTOCOL;
 import static org.apache.dubbo.common.constants.CommonConstants.ENABLED_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.GROUP_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.INTERFACE_KEY;
+import static org.apache.dubbo.common.constants.CommonConstants.MONITOR_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.PROTOCOL_KEY;
 import static org.apache.dubbo.common.constants.RegistryConstants.APP_DYNAMIC_CONFIGURATORS_CATEGORY;
 import static org.apache.dubbo.common.constants.RegistryConstants.CATEGORY_KEY;
@@ -73,40 +80,118 @@ import static org.apache.dubbo.common.constants.RegistryConstants.PROVIDERS_CATE
 import static org.apache.dubbo.common.constants.RegistryConstants.ROUTERS_CATEGORY;
 import static org.apache.dubbo.common.constants.RegistryConstants.ROUTE_PROTOCOL;
 import static org.apache.dubbo.registry.Constants.CONFIGURATORS_SUFFIX;
-import static org.apache.dubbo.registry.integration.InterfaceCompatibleRegistryProtocol.DEFAULT_REGISTER_CONSUMER_KEYS;
+import static org.apache.dubbo.registry.Constants.REGISTER_KEY;
+import static org.apache.dubbo.registry.Constants.SIMPLIFIED_KEY;
+import static org.apache.dubbo.registry.integration.RegistryProtocol.DEFAULT_REGISTER_CONSUMER_KEYS;
 import static org.apache.dubbo.remoting.Constants.CHECK_KEY;
+import static org.apache.dubbo.rpc.cluster.Constants.REFER_KEY;
 import static org.apache.dubbo.rpc.cluster.Constants.ROUTER_KEY;
 
 
 /**
  * RegistryDirectory
  */
-public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyListener {
+public class RegistryDirectory<T> extends AbstractDirectory<T> implements NotifyListener {
+
     private static final Logger logger = LoggerFactory.getLogger(RegistryDirectory.class);
 
+    private static final Cluster CLUSTER = ExtensionLoader.getExtensionLoader(Cluster.class).getAdaptiveExtension();
+
+    private static final RouterFactory ROUTER_FACTORY = ExtensionLoader.getExtensionLoader(RouterFactory.class)
+            .getAdaptiveExtension();
+
+    private final String serviceKey; // Initialization at construction time, assertion not null
+    private final Class<T> serviceType; // Initialization at construction time, assertion not null
+    private final Map<String, String> queryMap; // Initialization at construction time, assertion not null
+    private final URL directoryUrl; // Initialization at construction time, assertion not null, and always assign non null value
+    private final boolean multiGroup;
+    private Protocol protocol; // Initialization at the time of injection, the assertion is not null
+    private Registry registry; // Initialization at the time of injection, the assertion is not null
+    private volatile boolean forbidden = false;
+    private boolean shouldRegister;
+    private boolean shouldSimplified;
+
+    private volatile URL overrideDirectoryUrl; // Initialization at construction time, assertion not null, and always assign non null value
+
+    private volatile URL registeredConsumerUrl;
+
+    /**
+     * override rules
+     * Priority: override>-D>consumer>provider
+     * Rule one: for a certain provider <ip:port,timeout=100>
+     * Rule two: for all providers <* ,timeout=5000>
+     */
+    private volatile List<Configurator> configurators; // The initial value is null and the midway may be assigned to null, please use the local variable reference
+
+    // Map<url, Invoker> cache service url to invoker mapping.
+    private volatile Map<String, Invoker<T>> urlInvokerMap; // The initial value is null and the midway may be assigned to null, please use the local variable reference
+    private volatile List<Invoker<T>> invokers;
+
+    // Set<invokerUrls> cache invokeUrls to invokers mapping.
+    private volatile Set<URL> cachedInvokerUrls; // The initial value is null and the midway may be assigned to null, please use the local variable reference
+
     private static final ConsumerConfigurationListener CONSUMER_CONFIGURATION_LISTENER = new ConsumerConfigurationListener();
-    private ReferenceConfigurationListener referenceConfigurationListener;
+    private ReferenceConfigurationListener serviceConfigurationListener;
+
 
     public RegistryDirectory(Class<T> serviceType, URL url) {
-        super(serviceType, url);
+        super(url);
+        if (serviceType == null) {
+            throw new IllegalArgumentException("service type is null.");
+        }
+
+        shouldRegister = !ANY_VALUE.equals(url.getServiceInterface()) && url.getParameter(REGISTER_KEY, true);
+        shouldSimplified = url.getParameter(SIMPLIFIED_KEY, false);
+        if (url.getServiceKey() == null || url.getServiceKey().length() == 0) {
+            throw new IllegalArgumentException("registry serviceKey is null.");
+        }
+        this.serviceType = serviceType;
+        this.serviceKey = url.getServiceKey();
+        this.queryMap = StringUtils.parseQueryString(url.getParameterAndDecoded(REFER_KEY));
+        this.overrideDirectoryUrl = this.directoryUrl = turnRegistryUrlToConsumerUrl(url);
+        String group = directoryUrl.getParameter(GROUP_KEY, "");
+        this.multiGroup = group != null && (ANY_VALUE.equals(group) || group.contains(","));
     }
 
-    @Override
+    private URL turnRegistryUrlToConsumerUrl(URL url) {
+        return URLBuilder.from(url)
+                .setPath(url.getServiceInterface())
+                .clearParameters()
+                .addParameters(queryMap)
+                .removeParameter(MONITOR_KEY)
+                .build();
+    }
+
+    public void setProtocol(Protocol protocol) {
+        this.protocol = protocol;
+    }
+
+    public void setRegistry(Registry registry) {
+        this.registry = registry;
+    }
+
+    public Registry getRegistry() {
+        return registry;
+    }
+
+    public boolean isShouldRegister() {
+        return shouldRegister;
+    }
+
     public void subscribe(URL url) {
         setConsumerUrl(url);
-//        overrideConsumerUrl();
         CONSUMER_CONFIGURATION_LISTENER.addNotifyListener(this);
-        referenceConfigurationListener = new ReferenceConfigurationListener(this, url);
+        serviceConfigurationListener = new ReferenceConfigurationListener(this, url);
         registry.subscribe(url, this);
     }
 
-    @Override
     public void unSubscribe(URL url) {
         setConsumerUrl(null);
         CONSUMER_CONFIGURATION_LISTENER.removeNotifyListener(this);
-        referenceConfigurationListener.stop();
+        serviceConfigurationListener.stop();
         registry.unsubscribe(url, this);
     }
+
 
     @Override
     public void destroy() {
@@ -148,13 +233,16 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
                 .filter(this::isNotCompatibleFor26x)
                 .collect(Collectors.groupingBy(this::judgeCategory));
 
+        //对 configurator 节点的处理
         List<URL> configuratorURLs = categoryUrls.getOrDefault(CONFIGURATORS_CATEGORY, Collections.emptyList());
         this.configurators = Configurator.toConfigurators(configuratorURLs).orElse(this.configurators);
 
+        //对 routers 节点的处理
         List<URL> routerURLs = categoryUrls.getOrDefault(ROUTERS_CATEGORY, Collections.emptyList());
         toRouters(routerURLs).ifPresent(this::addRouters);
 
         // providers
+        //对 providers 节点的处理
         List<URL> providerURLs = categoryUrls.getOrDefault(PROVIDERS_CATEGORY, Collections.emptyList());
         /**
          * 3.x added for extend URL address
@@ -166,6 +254,7 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
                 providerURLs = addressListener.notify(providerURLs, getConsumerUrl(),this);
             }
         }
+        //刷新覆盖 invoker
         refreshOverrideAndInvoker(providerURLs);
     }
 
@@ -182,7 +271,9 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
 
     private void refreshOverrideAndInvoker(List<URL> urls) {
         // mock zookeeper://xxx?mock=return null
-        overrideConsumerUrl();
+        //保存之前的 invoker 列表
+        overrideDirectoryUrl();
+        //更新 invoker 列表
         refreshInvoker(urls);
     }
 
@@ -198,6 +289,7 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
      *
      * @param invokerUrls this parameter can't be null
      */
+    // TODO: 2017/8/31 FIXME The thread pool should be used to refresh the address, otherwise the task may be accumulated.
     private void refreshInvoker(List<URL> invokerUrls) {
         Assert.notNull(invokerUrls, "invokerUrls should not be null");
 
@@ -209,11 +301,14 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
             routerChain.setInvokers(this.invokers);
             destroyAllInvokers(); // Close all invokers
         } else {
+            //是否被禁止访问的
             this.forbidden = false; // Allow to access
-            Map<URL, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap; // local reference
+
+            Map<String, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap; // local reference
             if (invokerUrls == Collections.<URL>emptyList()) {
                 invokerUrls = new ArrayList<>();
             }
+            //和缓存相互赋值
             if (invokerUrls.isEmpty() && this.cachedInvokerUrls != null) {
                 invokerUrls.addAll(this.cachedInvokerUrls);
             } else {
@@ -223,7 +318,9 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
             if (invokerUrls.isEmpty()) {
                 return;
             }
-            Map<URL, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls);// Translate url list to Invoker map
+            //将来自于zk的url转换成对应的invoker 这里是获取最新的 invoker
+            //列表中的 invoker 是真实的提供者 没有装饰成一个大的 invoker
+            Map<String, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls);// Translate url list to Invoker map
 
             /**
              * If the calculation is wrong, it is not processed.
@@ -238,15 +335,19 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
                         .toString()));
                 return;
             }
-
+            //获取最新的 invoker 列表
             List<Invoker<T>> newInvokers = Collections.unmodifiableList(new ArrayList<>(newUrlInvokerMap.values()));
             // pre-route and build cache, notice that route cache should build on original Invoker list.
             // toMergeMethodInvokerMap() will wrap some invokers having different groups, those wrapped invokers not should be routed.
+            //将最新的 invoker 列表 放入 directory 中
             routerChain.setInvokers(newInvokers);
+            //如果没有分组 就直接赋值
             this.invokers = multiGroup ? toMergeInvokerList(newInvokers) : newInvokers;
+            //更新Directory 中的 invokerMap
             this.urlInvokerMap = newUrlInvokerMap;
 
             try {
+                //将老的 invokerMap 和 新的 invokerMap 取交集后赋值给老的 invokerMap
                 destroyUnusedInvokers(oldUrlInvokerMap, newUrlInvokerMap); // Close the unused Invoker
             } catch (Exception e) {
                 logger.warn("destroyUnusedInvokers error. ", e);
@@ -289,9 +390,11 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
 
         List<Router> routers = new ArrayList<>();
         for (URL url : urls) {
+            //过滤空的URL
             if (EMPTY_PROTOCOL.equals(url.getProtocol())) {
                 continue;
             }
+            //URL 中必须有 router 属性
             String routerType = url.getParameter(ROUTER_KEY);
             if (routerType != null && routerType.length() > 0) {
                 url = url.setProtocol(routerType);
@@ -315,12 +418,13 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
      * @param urls
      * @return invokers
      */
-    private Map<URL, Invoker<T>> toInvokers(List<URL> urls) {
-        Map<URL, Invoker<T>> newUrlInvokerMap = new HashMap<>();
+    private Map<String, Invoker<T>> toInvokers(List<URL> urls) {
+        //---------------这里是对 URL 的规范等进行检查-----------------start
+        Map<String, Invoker<T>> newUrlInvokerMap = new HashMap<>();
         if (urls == null || urls.isEmpty()) {
             return newUrlInvokerMap;
         }
-        Set<URL> keys = new HashSet<>();
+        Set<String> keys = new HashSet<>();
         String queryProtocols = this.queryMap.get(PROTOCOL_KEY);
         for (URL providerUrl : urls) {
             // If protocol is configured at the reference side, only the matching protocol is selected
@@ -347,15 +451,21 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
                         ExtensionLoader.getExtensionLoader(Protocol.class).getSupportedExtensions()));
                 continue;
             }
+            //---------------这里是对 URL 的规范等进行检查-----------------end
+
+            //合并 相同的 url 访问地址中配置的动态属性，如果有重复的执行覆盖
+            //优先级一次降低 消费者 > 提供者
             URL url = mergeUrl(providerUrl);
 
-            if (keys.contains(url)) { // Repeated url
+            String key = url.toFullString(); // The parameter urls are sorted
+            if (keys.contains(key)) { // Repeated url
                 continue;
             }
-            keys.add(url);
+            keys.add(key);
             // Cache key is url that does not merge with consumer side parameters, regardless of how the consumer combines parameters, if the server url changes, then refer again
-            Map<URL, Invoker<T>> localUrlInvokerMap = this.urlInvokerMap; // local reference
-            Invoker<T> invoker = localUrlInvokerMap == null ? null : localUrlInvokerMap.get(url);
+            //从缓存 invokerMap 中获取当前 url 对应的 invoker
+            Map<String, Invoker<T>> localUrlInvokerMap = this.urlInvokerMap; // local reference
+            Invoker<T> invoker = localUrlInvokerMap == null ? null : localUrlInvokerMap.get(key);
             if (invoker == null) { // Not in the cache, refer again
                 try {
                     boolean enabled = true;
@@ -364,17 +474,19 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
                     } else {
                         enabled = url.getParameter(ENABLED_KEY, true);
                     }
+                    //如果没有 invoker
                     if (enabled) {
+                        //就创建一个 invoker 委派类
                         invoker = new InvokerDelegate<>(protocol.refer(serviceType, url), url, providerUrl);
                     }
                 } catch (Throwable t) {
                     logger.error("Failed to refer invoker for interface:" + serviceType + ",url:(" + url + ")" + t.getMessage(), t);
                 }
                 if (invoker != null) { // Put new invoker in cache
-                    newUrlInvokerMap.put(url, invoker);
+                    newUrlInvokerMap.put(key, invoker);
                 }
             } else {
-                newUrlInvokerMap.put(url, invoker);
+                newUrlInvokerMap.put(key, invoker);
             }
         }
         keys.clear();
@@ -388,16 +500,19 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
      * @return
      */
     private URL mergeUrl(URL providerUrl) {
-        providerUrl = ClusterUtils.mergeProviderUrl(providerUrl, queryMap); // Merge the consumer side parameters
+        providerUrl = ClusterUtils.mergeUrl(providerUrl, queryMap); // Merge the consumer side parameters
 
         providerUrl = overrideWithConfigurator(providerUrl);
 
         providerUrl = providerUrl.addParameter(Constants.CHECK_KEY, String.valueOf(false)); // Do not check whether the connection is successful or not, always create Invoker!
 
+        // The combination of directoryUrl and override is at the end of notify, which can't be handled here
+        this.overrideDirectoryUrl = this.overrideDirectoryUrl.addParametersIfAbsent(providerUrl.getParameters()); // Merge the provider side parameters
+
         if ((providerUrl.getPath() == null || providerUrl.getPath()
                 .length() == 0) && DUBBO_PROTOCOL.equals(providerUrl.getProtocol())) { // Compatible version 1.0
             //fix by tony.chenl DUBBO-44
-            String path = getConsumerUrl().getParameter(INTERFACE_KEY);
+            String path = directoryUrl.getParameter(INTERFACE_KEY);
             if (path != null) {
                 int i = path.indexOf('/');
                 if (i >= 0) {
@@ -421,8 +536,8 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
         providerUrl = overrideWithConfigurators(CONSUMER_CONFIGURATION_LISTENER.getConfigurators(), providerUrl);
 
         // override url with configurator from configurators from "service-name.configurators"
-        if (referenceConfigurationListener != null) {
-            providerUrl = overrideWithConfigurators(referenceConfigurationListener.getConfigurators(), providerUrl);
+        if (serviceConfigurationListener != null) {
+            providerUrl = overrideWithConfigurators(serviceConfigurationListener.getConfigurators(), providerUrl);
         }
 
         return providerUrl;
@@ -441,7 +556,7 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
      * Close all invokers
      */
     private void destroyAllInvokers() {
-        Map<URL, Invoker<T>> localUrlInvokerMap = this.urlInvokerMap; // local reference
+        Map<String, Invoker<T>> localUrlInvokerMap = this.urlInvokerMap; // local reference
         if (localUrlInvokerMap != null) {
             for (Invoker<T> invoker : new ArrayList<>(localUrlInvokerMap.values())) {
                 try {
@@ -462,16 +577,16 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
      * @param oldUrlInvokerMap
      * @param newUrlInvokerMap
      */
-    private void destroyUnusedInvokers(Map<URL, Invoker<T>> oldUrlInvokerMap, Map<URL, Invoker<T>> newUrlInvokerMap) {
+    private void destroyUnusedInvokers(Map<String, Invoker<T>> oldUrlInvokerMap, Map<String, Invoker<T>> newUrlInvokerMap) {
         if (newUrlInvokerMap == null || newUrlInvokerMap.size() == 0) {
             destroyAllInvokers();
             return;
         }
         // check deleted invoker
-        List<URL> deleted = null;
+        List<String> deleted = null;
         if (oldUrlInvokerMap != null) {
             Collection<Invoker<T>> newInvokers = newUrlInvokerMap.values();
-            for (Map.Entry<URL, Invoker<T>> entry : oldUrlInvokerMap.entrySet()) {
+            for (Map.Entry<String, Invoker<T>> entry : oldUrlInvokerMap.entrySet()) {
                 if (!newInvokers.contains(entry.getValue())) {
                     if (deleted == null) {
                         deleted = new ArrayList<>();
@@ -482,7 +597,7 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
         }
 
         if (deleted != null) {
-            for (URL url : deleted) {
+            for (String url : deleted) {
                 if (url != null) {
                     Invoker<T> invoker = oldUrlInvokerMap.remove(url);
                     if (invoker != null) {
@@ -535,6 +650,11 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
         return invokers;
     }
 
+    @Override
+    public URL getConsumerUrl() {
+        return this.overrideDirectoryUrl;
+    }
+
     public URL getRegisteredConsumerUrl() {
         return registeredConsumerUrl;
     }
@@ -554,7 +674,7 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
         if (isDestroyed()) {
             return false;
         }
-        Map<URL, Invoker<T>> localUrlInvokerMap = urlInvokerMap;
+        Map<String, Invoker<T>> localUrlInvokerMap = urlInvokerMap;
         if (localUrlInvokerMap != null && localUrlInvokerMap.size() > 0) {
             for (Invoker<T> invoker : new ArrayList<>(localUrlInvokerMap.values())) {
                 if (invoker.isAvailable()) {
@@ -572,7 +692,7 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
     /**
      * Haomin: added for test purpose
      */
-    public Map<URL, Invoker<T>> getUrlInvokerMap() {
+    public Map<String, Invoker<T>> getUrlInvokerMap() {
         return urlInvokerMap;
     }
 
@@ -597,25 +717,23 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> implements NotifyL
         return StringUtils.isEmpty(url.getParameter(COMPATIBLE_CONFIG_KEY));
     }
 
-    private void overrideConsumerUrl() {
+    private void overrideDirectoryUrl() {
         // merge override parameters
-        this.overrideConsumerUrl = getConsumerUrl();
-        if (overrideConsumerUrl != null) {
-            List<Configurator> localConfigurators = this.configurators; // local reference
-            doOverrideUrl(localConfigurators);
-            List<Configurator> localAppDynamicConfigurators = CONSUMER_CONFIGURATION_LISTENER.getConfigurators(); // local reference
-            doOverrideUrl(localAppDynamicConfigurators);
-            if (referenceConfigurationListener != null) {
-                List<Configurator> localDynamicConfigurators = referenceConfigurationListener.getConfigurators(); // local reference
-                doOverrideUrl(localDynamicConfigurators);
-            }
+        this.overrideDirectoryUrl = directoryUrl;
+        List<Configurator> localConfigurators = this.configurators; // local reference
+        doOverrideUrl(localConfigurators);
+        List<Configurator> localAppDynamicConfigurators = CONSUMER_CONFIGURATION_LISTENER.getConfigurators(); // local reference
+        doOverrideUrl(localAppDynamicConfigurators);
+        if (serviceConfigurationListener != null) {
+            List<Configurator> localDynamicConfigurators = serviceConfigurationListener.getConfigurators(); // local reference
+            doOverrideUrl(localDynamicConfigurators);
         }
     }
 
     private void doOverrideUrl(List<Configurator> configurators) {
         if (CollectionUtils.isNotEmpty(configurators)) {
             for (Configurator configurator : configurators) {
-                this.overrideConsumerUrl = configurator.configure(overrideConsumerUrl);
+                this.overrideDirectoryUrl = configurator.configure(overrideDirectoryUrl);
             }
         }
     }

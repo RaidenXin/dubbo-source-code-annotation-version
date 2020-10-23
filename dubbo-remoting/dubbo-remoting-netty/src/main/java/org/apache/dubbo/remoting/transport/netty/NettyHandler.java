@@ -56,6 +56,7 @@ public class NettyHandler extends SimpleChannelHandler {
             throw new IllegalArgumentException("handler == null");
         }
         this.url = url;
+        // 这里的 handler 类型为 NettyServer
         this.handler = handler;
     }
 
@@ -95,10 +96,28 @@ public class NettyHandler extends SimpleChannelHandler {
         }
     }
 
+    /**
+     * NettyHandler#messageReceived(ChannelHandlerContext, MessageEvent)
+     *   —> AbstractPeer#received(Channel, Object)
+     *     —> MultiMessageHandler#received(Channel, Object)
+     *       —> HeartbeatHandler#received(Channel, Object)
+     *         —> AllChannelHandler#received(Channel, Object)
+     *           —> ExecutorService#execute(Runnable)    // 由线程池执行后续的调用逻辑
+     * 策略	                    用途
+     * all	        所有消息都派发到线程池，包括请求，响应，连接事件，断开事件等
+     * direct	    所有消息都不派发到线程池，全部在 IO 线程上直接执行
+     * message	    只有请求和响应消息派发到线程池，其它消息均在 IO 线程上执行
+     * execution	只有请求消息派发到线程池，不含响应。其它消息均在 IO 线程上执行
+     * connection	在 IO 线程上，将连接断开事件放入队列，有序逐个执行，其它消息派发到线程池
+     *
+     * 默认配置下，Dubbo 使用 all 派发策略，即将所有的消息都派发到线程池中。
+     */
     @Override
     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+        // 获取 NettyChannel
         NettyChannel channel = NettyChannel.getOrAddChannel(ctx.getChannel(), url, handler);
         try {
+            // 继续向下调用
             handler.received(channel, e.getMessage());
         } finally {
             NettyChannel.removeChannelIfDisconnected(ctx.getChannel());

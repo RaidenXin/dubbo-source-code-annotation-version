@@ -164,14 +164,6 @@ public class ConfigManager extends LifecycleAdapter implements FrameworkExt {
         return getConfigs(getTagName(MetadataReportConfig.class));
     }
 
-    public Collection<MetadataReportConfig> getDefaultMetadataConfigs() {
-        Collection<MetadataReportConfig> defaults = getDefaultConfigs(getConfigsMap(getTagName(MetadataReportConfig.class)));
-        if (CollectionUtils.isEmpty(defaults)) {
-            return getMetadataConfigs();
-        }
-        return defaults;
-    }
-
     // MetadataReportConfig correlative methods
 
     public void addProvider(ProviderConfig providerConfig) {
@@ -374,7 +366,9 @@ public class ConfigManager extends LifecycleAdapter implements FrameworkExt {
     }
 
     public void clear() {
-        write(this.configsCache::clear);
+        write(() -> {
+            this.configsCache.clear();
+        });
     }
 
     /**

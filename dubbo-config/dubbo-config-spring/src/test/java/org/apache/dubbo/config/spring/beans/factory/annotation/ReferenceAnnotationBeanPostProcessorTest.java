@@ -23,14 +23,15 @@ import org.apache.dubbo.config.spring.api.DemoService;
 import org.apache.dubbo.config.spring.api.HelloService;
 import org.apache.dubbo.config.utils.ReferenceConfigCache;
 import org.apache.dubbo.rpc.model.ApplicationModel;
+
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.InjectionMetadata;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,20 +42,20 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.stereotype.Component;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.context.junit4.SpringRunner;
 
 import java.util.Collection;
 import java.util.Map;
 
 import static org.apache.dubbo.config.spring.beans.factory.annotation.ReferenceAnnotationBeanPostProcessor.BEAN_NAME;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.Assert.assertTrue;
 
 /**
  * {@link ReferenceAnnotationBeanPostProcessor} Test
  *
  * @since 2.5.7
  */
-@ExtendWith(SpringExtension.class)
+@RunWith(SpringRunner.class)
 @ContextConfiguration(
         classes = {
                 ServiceAnnotationTestConfiguration.class,
@@ -69,13 +70,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
 public class ReferenceAnnotationBeanPostProcessorTest {
 
-    @BeforeAll
-    public static void setUp() {
+    @Before
+    public void setUp() {
         ApplicationModel.reset();
     }
 
-    @AfterAll
-    public static void tearDown() {
+    @After
+    public void tearDown() {
         ApplicationModel.reset();
     }
 
@@ -130,35 +131,35 @@ public class ReferenceAnnotationBeanPostProcessorTest {
         DemoService demoService = testBean.getDemoService();
         Map<String, DemoService> demoServicesMap = context.getBeansOfType(DemoService.class);
 
-        Assertions.assertNotNull(testBean.getDemoServiceFromAncestor());
-        Assertions.assertNotNull(testBean.getDemoServiceFromParent());
-        Assertions.assertNotNull(testBean.getDemoService());
-        Assertions.assertNotNull(testBean.autowiredDemoService);
-        Assertions.assertEquals(1, demoServicesMap.size());
+        Assert.assertNotNull(testBean.getDemoServiceFromAncestor());
+        Assert.assertNotNull(testBean.getDemoServiceFromParent());
+        Assert.assertNotNull(testBean.getDemoService());
+        Assert.assertNotNull(testBean.autowiredDemoService);
+        Assert.assertEquals(1, demoServicesMap.size());
 
         String expectedResult = "Hello,Mercy" + AOP_SUFFIX;
 
-        Assertions.assertEquals(expectedResult, testBean.autowiredDemoService.sayName("Mercy"));
-        Assertions.assertEquals(expectedResult, demoService.sayName("Mercy"));
-        Assertions.assertEquals("Greeting, Mercy", defaultHelloService.sayHello("Mercy"));
-        Assertions.assertEquals("Hello, Mercy", helloServiceImpl.sayHello("Mercy"));
-        Assertions.assertEquals("Greeting, Mercy", helloService.sayHello("Mercy"));
+        Assert.assertEquals(expectedResult, testBean.autowiredDemoService.sayName("Mercy"));
+        Assert.assertEquals(expectedResult, demoService.sayName("Mercy"));
+        Assert.assertEquals("Greeting, Mercy", defaultHelloService.sayHello("Mercy"));
+        Assert.assertEquals("Hello, Mercy", helloServiceImpl.sayHello("Mercy"));
+        Assert.assertEquals("Greeting, Mercy", helloService.sayHello("Mercy"));
 
 
-        Assertions.assertEquals(expectedResult, testBean.getDemoServiceFromAncestor().sayName("Mercy"));
-        Assertions.assertEquals(expectedResult, testBean.getDemoServiceFromParent().sayName("Mercy"));
-        Assertions.assertEquals(expectedResult, testBean.getDemoService().sayName("Mercy"));
+        Assert.assertEquals(expectedResult, testBean.getDemoServiceFromAncestor().sayName("Mercy"));
+        Assert.assertEquals(expectedResult, testBean.getDemoServiceFromParent().sayName("Mercy"));
+        Assert.assertEquals(expectedResult, testBean.getDemoService().sayName("Mercy"));
 
         DemoService myDemoService = context.getBean("my-reference-bean", DemoService.class);
 
-        Assertions.assertEquals(expectedResult, myDemoService.sayName("Mercy"));
+        Assert.assertEquals(expectedResult, myDemoService.sayName("Mercy"));
 
 
         for (DemoService demoService1 : demoServicesMap.values()) {
 
-            Assertions.assertEquals(myDemoService, demoService1);
+            Assert.assertEquals(myDemoService, demoService1);
 
-            Assertions.assertEquals(expectedResult, demoService1.sayName("Mercy"));
+            Assert.assertEquals(expectedResult, demoService1.sayName("Mercy"));
         }
 
     }
@@ -174,11 +175,11 @@ public class ReferenceAnnotationBeanPostProcessorTest {
 
         Collection<ReferenceBean<?>> referenceBeans = beanPostProcessor.getReferenceBeans();
 
-        Assertions.assertEquals(4, referenceBeans.size());
+        Assert.assertEquals(4, referenceBeans.size());
 
         ReferenceBean<?> referenceBean = referenceBeans.iterator().next();
 
-        Assertions.assertNotNull(ReferenceConfigCache.getCache().get(referenceBean));
+        Assert.assertNotNull(ReferenceConfigCache.getCache().get(referenceBean));
 
     }
 
@@ -191,13 +192,13 @@ public class ReferenceAnnotationBeanPostProcessorTest {
         Map<InjectionMetadata.InjectedElement, ReferenceBean<?>> referenceBeanMap =
                 beanPostProcessor.getInjectedFieldReferenceBeanMap();
 
-        Assertions.assertEquals(3, referenceBeanMap.size());
+        Assert.assertEquals(3, referenceBeanMap.size());
 
         for (Map.Entry<InjectionMetadata.InjectedElement, ReferenceBean<?>> entry : referenceBeanMap.entrySet()) {
 
             InjectionMetadata.InjectedElement injectedElement = entry.getKey();
 
-            Assertions.assertEquals("com.alibaba.spring.beans.factory.annotation.AbstractAnnotationBeanPostProcessor$AnnotatedFieldElement",
+            Assert.assertEquals("com.alibaba.spring.beans.factory.annotation.AbstractAnnotationBeanPostProcessor$AnnotatedFieldElement",
                     injectedElement.getClass().getName());
 
         }
@@ -213,13 +214,13 @@ public class ReferenceAnnotationBeanPostProcessorTest {
         Map<InjectionMetadata.InjectedElement, ReferenceBean<?>> referenceBeanMap =
                 beanPostProcessor.getInjectedMethodReferenceBeanMap();
 
-        Assertions.assertEquals(2, referenceBeanMap.size());
+        Assert.assertEquals(2, referenceBeanMap.size());
 
         for (Map.Entry<InjectionMetadata.InjectedElement, ReferenceBean<?>> entry : referenceBeanMap.entrySet()) {
 
             InjectionMetadata.InjectedElement injectedElement = entry.getKey();
 
-            Assertions.assertEquals("com.alibaba.spring.beans.factory.annotation.AbstractAnnotationBeanPostProcessor$AnnotatedMethodElement",
+            Assert.assertEquals("com.alibaba.spring.beans.factory.annotation.AbstractAnnotationBeanPostProcessor$AnnotatedMethodElement",
                     injectedElement.getClass().getName());
 
         }
@@ -308,12 +309,12 @@ public class ReferenceAnnotationBeanPostProcessorTest {
 
         Collection<ReferenceBean<?>> referenceBeans = beanPostProcessor.getReferenceBeans();
 
-        Assertions.assertEquals(4, referenceBeans.size());
+        Assert.assertEquals(4, referenceBeans.size());
 
         ReferenceBean<?> referenceBean = referenceBeans.iterator().next();
 
         if ("helloService".equals(referenceBean.getId())) {
-            Assertions.assertNotNull(referenceBean.getMethods());
+            Assert.assertNotNull(referenceBean.getMethods());
         }
     }
 

@@ -32,7 +32,6 @@ import com.orbitz.consul.Consul;
 import com.orbitz.consul.KeyValueClient;
 import com.orbitz.consul.cache.KVCache;
 import com.orbitz.consul.model.kv.Value;
-import org.apache.dubbo.common.utils.StringUtils;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -56,26 +55,17 @@ public class ConsulDynamicConfiguration extends TreePathDynamicConfiguration {
     private static final int DEFAULT_WATCH_TIMEOUT = 60 * 1000;
     private static final String WATCH_TIMEOUT = "consul-watch-timeout";
 
-    private final Consul client;
+    private Consul client;
 
-    private final KeyValueClient kvClient;
+    private KeyValueClient kvClient;
 
-    private final int watchTimeout;
-
-    private final ConcurrentMap<String, ConsulListener> watchers = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, ConsulListener> watchers = new ConcurrentHashMap<>();
 
     public ConsulDynamicConfiguration(URL url) {
         super(url);
-        watchTimeout = url.getParameter(WATCH_TIMEOUT, DEFAULT_WATCH_TIMEOUT);
         String host = url.getHost();
         int port = url.getPort() != 0 ? url.getPort() : DEFAULT_PORT;
-        Consul.Builder builder = Consul.builder()
-                .withHostAndPort(HostAndPort.fromParts(host, port));
-        String token = url.getParameter("token", (String) null);
-        if (StringUtils.isNotEmpty(token)) {
-            builder.withAclToken(token);
-        }
-        client = builder.build();
+        client = Consul.builder().withHostAndPort(HostAndPort.fromParts(host, port)).build();
         this.kvClient = client.keyValueClient();
     }
 
@@ -138,8 +128,8 @@ public class ConsulDynamicConfiguration extends TreePathDynamicConfiguration {
     private class ConsulListener implements KVCache.Listener<String, Value> {
 
         private KVCache kvCache;
-        private final Set<ConfigurationListener> listeners = new LinkedHashSet<>();
-        private final String normalizedKey;
+        private Set<ConfigurationListener> listeners = new LinkedHashSet<>();
+        private String normalizedKey;
 
         public ConsulListener(String normalizedKey) {
             this.normalizedKey = normalizedKey;
@@ -147,7 +137,7 @@ public class ConsulDynamicConfiguration extends TreePathDynamicConfiguration {
         }
 
         private void initKVCache() {
-            this.kvCache = KVCache.newCache(kvClient, normalizedKey, watchTimeout);
+            this.kvCache = KVCache.newCache(kvClient, normalizedKey);
             kvCache.addListener(this);
             kvCache.start();
         }

@@ -89,6 +89,7 @@ public class NettyClient extends AbstractClient {
      */
     @Override
     protected void doOpen() throws Throwable {
+        //创建一个Netty 客户端
         final NettyClientHandler nettyClientHandler = new NettyClientHandler(getUrl(), this);
         bootstrap = new Bootstrap();
         bootstrap.group(NIO_EVENT_LOOP_GROUP)
@@ -129,15 +130,18 @@ public class NettyClient extends AbstractClient {
     @Override
     protected void doConnect() throws Throwable {
         long start = System.currentTimeMillis();
+        //连接Netty 服务器
         ChannelFuture future = bootstrap.connect(getConnectAddress());
         try {
+            //等待连接完毕
             boolean ret = future.awaitUninterruptibly(getConnectTimeout(), MILLISECONDS);
-
+            //查看是否真的连接成功
             if (ret && future.isSuccess()) {
                 Channel newChannel = future.channel();
                 try {
                     // Close old channel
                     // copy reference
+                    //获取并关闭旧的连接 Channel
                     Channel oldChannel = NettyClient.this.channel;
                     if (oldChannel != null) {
                         try {
@@ -146,6 +150,7 @@ public class NettyClient extends AbstractClient {
                             }
                             oldChannel.close();
                         } finally {
+                            //从缓存中移除通道
                             NettyChannel.removeChannelIfDisconnected(oldChannel);
                         }
                     }
@@ -158,6 +163,7 @@ public class NettyClient extends AbstractClient {
                             newChannel.close();
                         } finally {
                             NettyClient.this.channel = null;
+                            //从缓存中移除通道
                             NettyChannel.removeChannelIfDisconnected(newChannel);
                         }
                     } else {
@@ -203,6 +209,7 @@ public class NettyClient extends AbstractClient {
         if (c == null) {
             return null;
         }
+        // 获取一个 NettyChannel 类型对象
         return NettyChannel.getOrAddChannel(c, getUrl(), this);
     }
 

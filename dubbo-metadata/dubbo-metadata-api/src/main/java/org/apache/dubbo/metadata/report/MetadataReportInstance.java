@@ -19,14 +19,10 @@ package org.apache.dubbo.metadata.report;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.URLBuilder;
 import org.apache.dubbo.common.extension.ExtensionLoader;
-import org.apache.dubbo.config.MetadataReportConfig;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_DIRECTORY;
-import static org.apache.dubbo.common.constants.CommonConstants.DEFAULT_KEY;
 import static org.apache.dubbo.metadata.report.support.Constants.METADATA_REPORT_KEY;
 
 /**
@@ -36,44 +32,34 @@ public class MetadataReportInstance {
 
     private static AtomicBoolean init = new AtomicBoolean(false);
 
-    private static final Map<String, MetadataReport> metadataReports = new HashMap<>();
+    private static MetadataReport metadataReport;
 
-    public static void init(MetadataReportConfig config) {
+    public static void init(URL metadataReportURL) {
         if (init.get()) {
             return;
         }
         MetadataReportFactory metadataReportFactory = ExtensionLoader.getExtensionLoader(MetadataReportFactory.class).getAdaptiveExtension();
-        URL url = config.toUrl();
-        if (METADATA_REPORT_KEY.equals(url.getProtocol())) {
-            String protocol = url.getParameter(METADATA_REPORT_KEY, DEFAULT_DIRECTORY);
-            url = URLBuilder.from(url)
+        if (METADATA_REPORT_KEY.equals(metadataReportURL.getProtocol())) {
+            String protocol = metadataReportURL.getParameter(METADATA_REPORT_KEY, DEFAULT_DIRECTORY);
+            metadataReportURL = URLBuilder.from(metadataReportURL)
                     .setProtocol(protocol)
                     .removeParameter(METADATA_REPORT_KEY)
                     .build();
         }
-        String relatedRegistryId = config.getRegistry() == null ? DEFAULT_KEY : config.getRegistry();
-//        RegistryConfig registryConfig = ApplicationModel.getConfigManager().getRegistry(relatedRegistryId)
-//                .orElseThrow(() -> new IllegalStateException("Registry id " + relatedRegistryId + " does not exist."));
-        metadataReports.put(relatedRegistryId, metadataReportFactory.getMetadataReport(url));
+        metadataReport = metadataReportFactory.getMetadataReport(metadataReportURL);
         init.set(true);
     }
 
-    public static Map<String, MetadataReport> getMetadataReports(boolean checked) {
+    public static MetadataReport getMetadataReport() {
+        return getMetadataReport(false);
+    }
+
+    public static MetadataReport getMetadataReport(boolean checked) {
         if (checked) {
             checkInit();
         }
-        return metadataReports;
-    }
-
-    public static MetadataReport getMetadataReport(String registryKey) {
-        checkInit();
-        MetadataReport metadataReport = metadataReports.get(registryKey);
-        if (metadataReport == null) {
-            metadataReport = metadataReports.values().iterator().next();
-        }
         return metadataReport;
     }
-
 
     private static void checkInit() {
         if (!init.get()) {

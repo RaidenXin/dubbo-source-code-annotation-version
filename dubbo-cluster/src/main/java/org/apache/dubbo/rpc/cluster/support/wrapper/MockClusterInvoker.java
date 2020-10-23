@@ -64,11 +64,6 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
     }
 
     @Override
-    public boolean isDestroyed() {
-        return directory.isDestroyed();
-    }
-
-    @Override
     public boolean isAvailable() {
         return directory.isAvailable();
     }
@@ -86,25 +81,34 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
         Result result = null;
-
+        //获取 mock 值
         String value = getUrl().getMethodParameter(invocation.getMethodName(), MOCK_KEY, Boolean.FALSE.toString()).trim();
+        //如果没有设置 mock 属性 或者 mock 属性为 false 就不存在服务降级
         if (value.length() == 0 || "false".equalsIgnoreCase(value)) {
             //no mock
+            // 无 mock 逻辑，直接调用其他 Invoker 对象的 invoke 方法，
+            // 比如 FailoverClusterInvoker
             result = this.invoker.invoke(invocation);
         } else if (value.startsWith("force")) {
+            //mock 属性值 以force开头，则强制降级
             if (logger.isWarnEnabled()) {
                 logger.warn("force-mock: " + invocation.getMethodName() + " force-mock enabled , url : " + getUrl());
             }
             //force:direct mock
+            //执行降级
             result = doMockInvoke(invocation, null);
         } else {
             //fail-mock
+            // fail:xxx 表示消费方对调用服务失败后，再执行 mock 逻辑，不抛出异常
+            //当远程调用失败的时候 会自动进行降级
             try {
+                //远程调用
                 result = this.invoker.invoke(invocation);
 
                 //fix:#4585
                 if(result.getException() != null && result.getException() instanceof RpcException){
                     RpcException rpcException= (RpcException)result.getException();
+                    // 调用失败，执行 mock 逻辑
                     if(rpcException.isBiz()){
                         throw  rpcException;
                     }else {

@@ -52,6 +52,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.apache.dubbo.common.constants.CommonConstants.ANY_VALUE;
 import static org.apache.dubbo.common.constants.CommonConstants.APPLICATION_KEY;
@@ -331,9 +332,6 @@ public abstract class AbstractRegistry implements Registry {
         if (listeners != null) {
             listeners.remove(listener);
         }
-
-        // do not forget remove notified
-        notified.remove(url);
     }
 
     protected void recover() throws Exception {
@@ -410,6 +408,10 @@ public abstract class AbstractRegistry implements Registry {
             logger.info("Notify urls for subscribe url " + url + ", urls: " + urls);
         }
         // keep every provider's category.
+        //这里其实就是将 urls 根据节点分类进行分组
+        //Key 其实就是节点分类 Value 就是子节点的URL 如果没有子节点的 就是 empty 协议的 URL
+        //这里其实可以使用java8 的 urls.stream().filter(u -> UrlUtils.isMatch(url, u))
+        // .collect(Collectors.groupingBy(u -> u.getParameter(CATEGORY_KEY, DEFAULT_CATEGORY)));
         Map<String, List<URL>> result = new HashMap<>();
         for (URL u : urls) {
             if (UrlUtils.isMatch(url, u)) {
@@ -426,6 +428,8 @@ public abstract class AbstractRegistry implements Registry {
             String category = entry.getKey();
             List<URL> categoryList = entry.getValue();
             categoryNotified.put(category, categoryList);
+            //主动调用当前分类节点所有监听器的notify方法
+            //这里为什么循环调用传入一个list 没搞明白 不过无伤大雅
             listener.notify(categoryList);
             // We will update our cache file after each notification.
             // When our Registry has a subscribe failure due to network jitter, we can return at least the existing cache URL.

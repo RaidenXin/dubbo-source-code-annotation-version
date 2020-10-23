@@ -34,7 +34,6 @@ import static org.apache.dubbo.common.utils.MemberUtils.isPrivate;
 import static org.apache.dubbo.common.utils.MemberUtils.isStatic;
 import static org.apache.dubbo.common.utils.ReflectUtils.EMPTY_CLASS_ARRAY;
 import static org.apache.dubbo.common.utils.ReflectUtils.resolveTypes;
-import static org.apache.dubbo.common.utils.StringUtils.isNotEmpty;
 
 /**
  * Miscellaneous method utility methods.
@@ -117,6 +116,7 @@ public interface MethodUtils {
     public static boolean isDeprecated(Method method) {
         return method.getAnnotation(Deprecated.class) != null;
     }
+
 
 
     /**
@@ -252,9 +252,7 @@ public interface MethodUtils {
     static Method findMethod(Class type, String methodName, Class<?>... parameterTypes) {
         Method method = null;
         try {
-            if (type != null && isNotEmpty(methodName)) {
-                method = type.getDeclaredMethod(methodName, parameterTypes);
-            }
+            method = type.getDeclaredMethod(methodName, parameterTypes);
         } catch (NoSuchMethodException e) {
         }
         return method;

@@ -22,9 +22,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.apache.dubbo.metadata.definition.model.TypeDefinition.formatType;
-import static org.apache.dubbo.metadata.definition.model.TypeDefinition.formatTypes;
-
 /**
  * 2015/1/27.
  */
@@ -63,11 +60,11 @@ public class MethodDefinition implements Serializable {
     }
 
     public void setParameterTypes(String[] parameterTypes) {
-        this.parameterTypes = formatTypes(parameterTypes);
+        this.parameterTypes = parameterTypes;
     }
 
     public void setReturnType(String returnType) {
-        this.returnType = formatType(returnType);
+        this.returnType = returnType;
     }
 
     @Override

@@ -201,6 +201,7 @@ public class AdaptiveClassCodeGenerator {
         Adaptive adaptiveAnnotation = method.getAnnotation(Adaptive.class);
         StringBuilder code = new StringBuilder(512);
         if (adaptiveAnnotation == null) {
+            //无 Adaptive 注解方法代码生成逻辑
             return generateUnsupported(method);
         } else {
             int urlTypeIndex = getUrlTypeIndex(method);
@@ -216,6 +217,7 @@ public class AdaptiveClassCodeGenerator {
 
             String[] value = getMethodAdaptiveValue(adaptiveAnnotation);
 
+            //获取方法参数中是否有 org.apache.dubbo.rpc.Invocation 这个类型的参数
             boolean hasInvocation = hasInvocationArgument(method);
 
             code.append(generateInvocationArgumentNullCheck(method));
@@ -245,43 +247,76 @@ public class AdaptiveClassCodeGenerator {
      */
     private String generateExtNameAssignment(String[] value, boolean hasInvocation) {
         // TODO: refactor it
+        // 遍历 value，这里的 value 是 Adaptive 的注解值，2.2.3.3 节分析过 value 变量的获取过程。
+        // 此处循环目的是生成从 URL 中获取拓展名的代码，生成的代码会赋值给 getNameCode 变量。注意这
+        // 个循环的遍历顺序是由后向前遍历的。
         String getNameCode = null;
         for (int i = value.length - 1; i >= 0; --i) {
+            // 当 i 为最后一个元素的坐标时
             if (i == value.length - 1) {
+                // 默认拓展名非空
                 if (null != defaultExtName) {
+                    // protocol 是 url 的一部分，可通过 getProtocol 方法获取，其他的则是从
+                    // URL 参数中获取。因为获取方式不同，所以这里要判断 value[i] 是否为 protocol
                     if (!"protocol".equals(value[i])) {
+                        // hasInvocation 用于标识方法参数列表中是否有 Invocation 类型参数
                         if (hasInvocation) {
+                            //   url.getMethodParameter(methodName, value[i], defaultExtName)
+                            // 以 LoadBalance 接口的 select 方法为例，最终生成的代码如下：
+                            //   url.getMethodParameter(methodName, "loadbalance", "random")
                             getNameCode = String.format("url.getMethodParameter(methodName, \"%s\", \"%s\")", value[i], defaultExtName);
                         } else {
+                            // 生成的代码功能等价于下面的代码：
+                            //   url.getParameter(value[i], defaultExtName)
                             getNameCode = String.format("url.getParameter(\"%s\", \"%s\")", value[i], defaultExtName);
                         }
                     } else {
+                        // 生成的代码功能等价于下面的代码：
+                        //   ( url.getProtocol() == null ? defaultExtName : url.getProtocol() )
                         getNameCode = String.format("( url.getProtocol() == null ? \"%s\" : url.getProtocol() )", defaultExtName);
                     }
                 } else {
+                    // 默认拓展名为空
                     if (!"protocol".equals(value[i])) {
                         if (hasInvocation) {
+                            //   url.getMethodParameter(methodName, value[i], defaultExtName)
+                            // 以 LoadBalance 接口的 select 方法为例，最终生成的代码如下：
+                            //   url.getMethodParameter(methodName, "loadbalance", "random")
                             getNameCode = String.format("url.getMethodParameter(methodName, \"%s\", \"%s\")", value[i], defaultExtName);
                         } else {
+                            // 生成的代码功能等价于下面的代码：
+                            //   url.getParameter(value[i], defaultExtName)
                             getNameCode = String.format("url.getParameter(\"%s\")", value[i]);
                         }
                     } else {
+                        // 生成从 url 中获取协议的代码，比如 "dubbo"
                         getNameCode = "url.getProtocol()";
                     }
                 }
             } else {
                 if (!"protocol".equals(value[i])) {
                     if (hasInvocation) {
+                        //   url.getMethodParameter(methodName, value[i], defaultExtName)
+                        // 以 LoadBalance 接口的 select 方法为例，最终生成的代码如下：
+                        //   url.getMethodParameter(methodName, "loadbalance", "random")
                         getNameCode = String.format("url.getMethodParameter(methodName, \"%s\", \"%s\")", value[i], defaultExtName);
                     } else {
+                        // 生成的代码功能等价于下面的代码：
+                        //   url.getParameter(value[i], getNameCode)
+                        // 以 Transporter 接口的 connect 方法为例，最终生成的代码如下：
+                        //   url.getParameter("client", url.getParameter("transporter", "netty"))
                         getNameCode = String.format("url.getParameter(\"%s\", %s)", value[i], getNameCode);
                     }
                 } else {
+                    // 生成的代码功能等价于下面的代码：
+                    //   url.getProtocol() == null ? getNameCode : url.getProtocol()
+                    // 以 Protocol 接口的 connect 方法为例，最终生成的代码如下：
+                    //   url.getProtocol() == null ? "dubbo" : url.getProtocol()
                     getNameCode = String.format("url.getProtocol() == null ? (%s) : url.getProtocol()", getNameCode);
                 }
             }
         }
-
+        // 生成 extName 赋值代码
         return String.format(CODE_EXT_NAME_ASSIGNMENT, getNameCode);
     }
 

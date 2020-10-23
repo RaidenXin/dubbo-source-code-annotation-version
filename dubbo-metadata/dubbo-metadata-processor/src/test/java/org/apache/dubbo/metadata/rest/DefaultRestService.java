@@ -16,7 +16,7 @@
  */
 package org.apache.dubbo.metadata.rest;
 
-import org.apache.dubbo.config.annotation.DubboService;
+import org.apache.dubbo.config.annotation.Service;
 
 import java.util.Map;
 
@@ -25,7 +25,7 @@ import java.util.Map;
  *
  * @since 2.7.6
  */
-@DubboService(version = "1.0.0", group = "default")
+@Service(version = "1.0.0", group = "default")
 public class DefaultRestService implements RestService {
 
     @Override

@@ -89,27 +89,37 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
     @Override
     protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
         String key = invokers.get(0).getUrl().getServiceKey() + "." + invocation.getMethodName();
+        //获取 OR 创建 方法权重缓存
         ConcurrentMap<String, WeightedRoundRobin> map = methodWeightMap.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
         int totalWeight = 0;
         long maxCurrent = Long.MIN_VALUE;
         long now = System.currentTimeMillis();
         Invoker<T> selectedInvoker = null;
         WeightedRoundRobin selectedWRR = null;
+        //遍历所有服务提供者代理类
         for (Invoker<T> invoker : invokers) {
+            //通过 URL 创建唯一的标识
             String identifyString = invoker.getUrl().toIdentityString();
+            //获取最新的权重值
             int weight = getWeight(invoker, invocation);
+            //获取 OR 创建 权重包装类
             WeightedRoundRobin weightedRoundRobin = map.computeIfAbsent(identifyString, k -> {
                 WeightedRoundRobin wrr = new WeightedRoundRobin();
                 wrr.setWeight(weight);
                 return wrr;
             });
-
+            //如果包装类的权重和最新生成的不一致
             if (weight != weightedRoundRobin.getWeight()) {
                 //weight changed
+                //将其设置为最新的权重
                 weightedRoundRobin.setWeight(weight);
             }
+            //将原先存的值再加上一个权重值得到的新值
+            //这个是权重轮询的关键点
             long cur = weightedRoundRobin.increaseCurrent();
+            //设置最后更新时间
             weightedRoundRobin.setLastUpdate(now);
+            //
             if (cur > maxCurrent) {
                 maxCurrent = cur;
                 selectedInvoker = invoker;

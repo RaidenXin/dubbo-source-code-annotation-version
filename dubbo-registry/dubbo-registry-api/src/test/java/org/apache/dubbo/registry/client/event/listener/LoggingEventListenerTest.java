@@ -32,8 +32,7 @@ import org.apache.dubbo.registry.client.event.ServiceInstancesChangedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
-
+import static java.util.Collections.singleton;
 import static org.apache.dubbo.registry.client.DefaultServiceInstanceTest.createInstance;
 
 /**
@@ -72,7 +71,7 @@ public class LoggingEventListenerTest {
         listener.onEvent(new ServiceInstanceRegisteredEvent(serviceDiscovery, createInstance()));
 
         // ServiceInstancesChangedEvent
-        listener.onEvent(new ServiceInstancesChangedEvent("test", Arrays.asList(createInstance())));
+        listener.onEvent(new ServiceInstancesChangedEvent("test", singleton(createInstance())));
 
         // ServiceInstancePreUnregisteredEvent
         listener.onEvent(new ServiceInstancePreUnregisteredEvent(serviceDiscovery, createInstance()));

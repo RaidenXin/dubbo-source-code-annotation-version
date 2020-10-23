@@ -30,6 +30,15 @@ import java.lang.annotation.Target;
  * @see ExtensionLoader
  * @see URL
  */
+/**
+ * Dubbo 自适应注解 可以使用在类上或者是方法上。类上使用比较少仅仅在 AdaptiveCompiler 和 AdaptiveExtensionFactory 上使用。代表这个类虽然是自适应类。
+ * 这个类的代码编写，是之前已经人工编写好的。
+ * 该注解主要使用在方法上居多。注解在方法（接口方法）上时，Dubbo 则会为该方法生成代理逻辑。代理类名一般为 {借口名称$Adaptive}
+ * 这个代理类会实现 由Adaptive注释的方法，没有注释的方法实现 仅仅是返回一个 UnsupportedOperationException
+ * 其中 Adaptive 的 String[] value 的使用是你在XML中定义的各种属性的 Key 比如你设置为 "protocol", "key2"
+ * 假设在你的XML 中配置了 protocol = dubbo， key2 = A
+ * 那么它将会使用 dubbo 这个扩展名通过SPI去加载你的类 也就是从第一个找 key开始找，找到第一个不为空的值
+ */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD})

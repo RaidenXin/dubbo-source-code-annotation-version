@@ -45,7 +45,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * This Invoker works on Consumer side.
+ * AbstractInvoker.
  */
 public abstract class AbstractInvoker<T> implements Invoker<T> {
 

@@ -100,18 +100,24 @@ public class InjvmProtocol extends AbstractProtocol implements Protocol {
     public boolean isInjvmRefer(URL url) {
         String scope = url.getParameter(SCOPE_KEY);
         // Since injvm protocol is configured explicitly, we don't need to set any extra flag, use normal refer process.
+        //如果 scope 的值为 local 或者 url设置了 injvm = true 就认为是本地调用
         if (SCOPE_LOCAL.equals(scope) || (url.getParameter(LOCAL_PROTOCOL, false))) {
             // if it's declared as local reference
             // 'scope=local' is equivalent to 'injvm=true', injvm will be deprecated in the future release
             return true;
         } else if (SCOPE_REMOTE.equals(scope)) {
             // it's declared as remote reference
+            // 如果 scope 的值为 remote 就不是本地调用
             return false;
         } else if (url.getParameter(GENERIC_KEY, false)) {
             // generic invocation is not local reference
+            //如果使用的是泛化调用 通常都不是本地调用
+            //泛化调用 其实就是 不依赖服务提供方 提供 接口jar包 直接通过实现泛化接口 GenericService
+            //在 $invoke 方法中自己实现调用
             return false;
         } else if (getExporter(exporterMap, url) != null) {
             // by default, go through local reference if there's the service exposed locally
+            //如果从本地调用缓存中 能找到对应的exporter 那就使用本地调用 之前在服务暴露方法中有放入
             return true;
         } else {
             return false;

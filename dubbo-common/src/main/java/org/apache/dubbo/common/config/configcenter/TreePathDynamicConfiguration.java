@@ -87,7 +87,7 @@ public abstract class TreePathDynamicConfiguration extends AbstractDynamicConfig
     @Override
     public final boolean publishConfig(String key, String group, String content) {
         String pathKey = buildPathKey(group, key);
-        return Boolean.TRUE.equals(execute(() -> doPublishConfig(pathKey, content), getDefaultTimeout()));
+        return execute(() -> doPublishConfig(pathKey, content), getDefaultTimeout());
     }
 
     @Override

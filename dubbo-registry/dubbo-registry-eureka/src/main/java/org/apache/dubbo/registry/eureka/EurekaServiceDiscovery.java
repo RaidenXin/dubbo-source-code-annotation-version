@@ -18,7 +18,6 @@ package org.apache.dubbo.registry.eureka;
 
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.event.EventDispatcher;
-import org.apache.dubbo.registry.client.AbstractServiceDiscovery;
 import org.apache.dubbo.registry.client.DefaultServiceInstance;
 import org.apache.dubbo.registry.client.ServiceDiscovery;
 import org.apache.dubbo.registry.client.ServiceInstance;
@@ -47,14 +46,13 @@ import java.util.Properties;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static org.apache.dubbo.common.constants.RegistryConstants.SUBSCRIBED_SERVICE_NAMES_KEY;
 import static org.apache.dubbo.event.EventDispatcher.getDefaultExtension;
-import static org.apache.dubbo.registry.client.ServiceDiscoveryRegistry.parseServices;
+import static org.apache.dubbo.registry.client.ServiceDiscoveryRegistry.getSubscribedServices;
 
 /**
  * Eureka {@link ServiceDiscovery} implementation based on Eureka API
  */
-public class EurekaServiceDiscovery extends AbstractServiceDiscovery {
+public class EurekaServiceDiscovery implements ServiceDiscovery {
 
     private final EventDispatcher eventDispatcher = getDefaultExtension();
 
@@ -101,8 +99,7 @@ public class EurekaServiceDiscovery extends AbstractServiceDiscovery {
      * @param registryURL the {@link URL url} to connect Eureka
      */
     private void initSubscribedServices(URL registryURL) {
-        this.subscribedServices = parseServices(registryURL.getParameter(SUBSCRIBED_SERVICE_NAMES_KEY));
-        ;
+        this.subscribedServices = getSubscribedServices(registryURL);
     }
 
     private boolean filterEurekaProperty(Map.Entry<String, String> propertyEntry) {

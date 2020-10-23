@@ -108,11 +108,6 @@ public class RpcInvocation implements Invocation, Serializable {
         this.invoker = invoker;
     }
 
-    @Override
-    public String getProtocolServiceKey() {
-        return null;
-    }
-
     public String getMethodName() {
         return methodName;
     }

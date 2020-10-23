@@ -61,11 +61,13 @@ public class SpringExtensionFactory implements ExtensionFactory {
     public <T> T getExtension(Class<T> type, String name) {
 
         //SPI should be get from SpiExtensionFactory
+        //若当前@SPI接口 不加载 因为可能已经被Dubbo SpiExtensionFactory 加载了
         if (type.isInterface() && type.isAnnotationPresent(SPI.class)) {
             return null;
         }
-
+        //遍历所有的 Spring 容器
         for (ApplicationContext context : CONTEXTS) {
+            //从spring 容器中获取 bean 如果多个只获取一个
             T bean = BeanFactoryUtils.getOptionalBean(context, name, type);
             if (bean != null) {
                 return bean;

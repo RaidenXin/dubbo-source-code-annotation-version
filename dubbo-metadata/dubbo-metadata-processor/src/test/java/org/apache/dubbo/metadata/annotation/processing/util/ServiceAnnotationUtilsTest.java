@@ -25,11 +25,10 @@ import org.apache.dubbo.metadata.tools.TestServiceImpl;
 import org.junit.jupiter.api.Test;
 
 import javax.lang.model.element.TypeElement;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static org.apache.dubbo.metadata.annotation.processing.util.ServiceAnnotationUtils.DUBBO_SERVICE_ANNOTATION_TYPE;
 import static org.apache.dubbo.metadata.annotation.processing.util.ServiceAnnotationUtils.GROUP_ATTRIBUTE_NAME;
 import static org.apache.dubbo.metadata.annotation.processing.util.ServiceAnnotationUtils.INTERFACE_CLASS_ATTRIBUTE_NAME;
 import static org.apache.dubbo.metadata.annotation.processing.util.ServiceAnnotationUtils.INTERFACE_NAME_ATTRIBUTE_NAME;
@@ -66,14 +65,13 @@ public class ServiceAnnotationUtilsTest extends AbstractAnnotationProcessingTest
 
     @Test
     public void testConstants() {
-        assertEquals("org.apache.dubbo.config.annotation.DubboService", DUBBO_SERVICE_ANNOTATION_TYPE);
         assertEquals("org.apache.dubbo.config.annotation.Service", SERVICE_ANNOTATION_TYPE);
         assertEquals("com.alibaba.dubbo.config.annotation.Service", LEGACY_SERVICE_ANNOTATION_TYPE);
         assertEquals("interfaceClass", INTERFACE_CLASS_ATTRIBUTE_NAME);
         assertEquals("interfaceName", INTERFACE_NAME_ATTRIBUTE_NAME);
         assertEquals("group", GROUP_ATTRIBUTE_NAME);
         assertEquals("version", VERSION_ATTRIBUTE_NAME);
-        assertEquals(new LinkedHashSet<>(asList("org.apache.dubbo.config.annotation.DubboService", "org.apache.dubbo.config.annotation.Service", "com.alibaba.dubbo.config.annotation.Service")), SUPPORTED_ANNOTATION_TYPES);
+        assertEquals(new HashSet(asList("org.apache.dubbo.config.annotation.Service", "com.alibaba.dubbo.config.annotation.Service")), SUPPORTED_ANNOTATION_TYPES);
     }
 
     @Test
@@ -127,7 +125,7 @@ public class ServiceAnnotationUtilsTest extends AbstractAnnotationProcessingTest
     @Test
     public void testGetGroup() {
         TypeElement type = getType(TestServiceImpl.class);
-        assertEquals("test", getGroup(getAnnotation(type)));
+        assertEquals("test",getGroup(getAnnotation(type)));
 
         type = getType(GenericTestService.class);
         assertEquals("generic", getGroup(getAnnotation(type)));

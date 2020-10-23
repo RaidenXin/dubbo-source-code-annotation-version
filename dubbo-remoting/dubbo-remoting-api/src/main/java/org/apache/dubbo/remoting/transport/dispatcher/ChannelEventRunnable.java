@@ -50,16 +50,31 @@ public class ChannelEventRunnable implements Runnable {
         this.exception = exception;
     }
 
+    /**
+     * ChannelEventRunnable#run()
+     *   —> DecodeHandler#received(Channel, Object)
+     *     —> HeaderExchangeHandler#received(Channel, Object)
+     *       —> HeaderExchangeHandler#handleRequest(ExchangeChannel, Request)
+     *         —> DubboProtocol.requestHandler#reply(ExchangeChannel, Object)
+     *           —> Filter#invoke(Invoker, Invocation)
+     *             —> AbstractProxyInvoker#invoke(Invocation)
+     *               —> Wrapper0#invokeMethod(Object, String, Class[], Object[])
+     *                 —> DemoServiceImpl#sayHello(String)
+     */
     @Override
     public void run() {
+        // 检测通道状态，对于请求或响应消息，此时 state = RECEIVED
         if (state == ChannelState.RECEIVED) {
             try {
+                // 将 channel 和 message 传给 ChannelHandler 对象，进行后续的调用
+                // 该对象为 DecodeHandler
                 handler.received(channel, message);
             } catch (Exception e) {
                 logger.warn("ChannelEventRunnable handle " + state + " operation error, channel is " + channel
                         + ", message is " + message, e);
             }
         } else {
+            // 其他消息类型通过 switch 进行处理
             switch (state) {
             case CONNECTED:
                 try {

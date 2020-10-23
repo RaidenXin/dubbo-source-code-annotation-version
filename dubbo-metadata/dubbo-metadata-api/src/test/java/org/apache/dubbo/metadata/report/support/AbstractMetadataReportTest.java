@@ -13,8 +13,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *//*
-
+ */
 package org.apache.dubbo.metadata.report.support;
 
 import org.apache.dubbo.common.URL;
@@ -50,19 +49,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-*/
 /**
- * Test {@link MetadataReport#saveExportedURLs(String, String, String)} method
  *
- * @since 2.7.8
- * <p>
- * Test {@link MetadataReport#getExportedURLs(String, String)} method
- * @since 2.7.8
- * <p>
- * Test {@link MetadataReport#getExportedURLsContent(String, String)} method
- * @since 2.7.8
- *//*
-
+ */
 public class AbstractMetadataReportTest {
 
     private NewMetadataReport abstractMetadataReport;
@@ -277,19 +266,11 @@ public class AbstractMetadataReportTest {
         }
     }
 
-    */
-/**
- * Test {@link MetadataReport#saveExportedURLs(String, String, String)} method
- *
- * @since 2.7.8
- * <p>
- * Test {@link MetadataReport#getExportedURLs(String, String)} method
- * @since 2.7.8
- * <p>
- * Test {@link MetadataReport#getExportedURLsContent(String, String)} method
- * @since 2.7.8
- *//*
-
+    /**
+     * Test {@link MetadataReport#saveExportedURLs(String, String, String)} method
+     *
+     * @since 2.7.8
+     */
     @Test
     public void testSaveExportedURLs() {
         String serviceName = null;
@@ -303,13 +284,11 @@ public class AbstractMetadataReportTest {
         assertTrue(abstractMetadataReport.saveExportedURLs(serviceName, exportedServiceRevision, exportedURLsContent));
     }
 
-    */
-/**
- * Test {@link MetadataReport#getExportedURLs(String, String)} method
- *
- * @since 2.7.8
- *//*
-
+    /**
+     * Test {@link MetadataReport#getExportedURLs(String, String)} method
+     *
+     * @since 2.7.8
+     */
     @Test
     public void testGetExportedURLs() {
         String serviceName = null;
@@ -317,13 +296,11 @@ public class AbstractMetadataReportTest {
         assertEquals(emptySet(), abstractMetadataReport.getExportedURLs(serviceName, exportedServiceRevision));
     }
 
-    */
-/**
- * Test {@link MetadataReport#getExportedURLsContent(String, String)} method
- *
- * @since 2.7.8
- *//*
-
+    /**
+     * Test {@link MetadataReport#getExportedURLsContent(String, String)} method
+     *
+     * @since 2.7.8
+     */
     @Test
     public void testGetExportedURLsContent() {
         String serviceName = null;
@@ -469,4 +446,3 @@ public class AbstractMetadataReportTest {
 
 
 }
-*/

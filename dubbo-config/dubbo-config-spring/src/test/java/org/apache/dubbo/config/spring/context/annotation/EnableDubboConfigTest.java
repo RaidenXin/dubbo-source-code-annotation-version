@@ -24,6 +24,7 @@ import org.apache.dubbo.config.ProtocolConfig;
 import org.apache.dubbo.config.ProviderConfig;
 import org.apache.dubbo.config.RegistryConfig;
 
+import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -107,7 +108,7 @@ public class EnableDubboConfigTest {
 
         for (Map.Entry<String, ProtocolConfig> entry : protocolConfigs.entrySet()) {
             ProtocolConfig protocol = entry.getValue();
-            Assertions.assertEquals(protocol, context.getBean(protocol.getName(), ProtocolConfig.class));
+            Assert.assertEquals(protocol, context.getBean(protocol.getName(), ProtocolConfig.class));
         }
 
         // asserts aliases

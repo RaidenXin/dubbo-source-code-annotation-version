@@ -42,10 +42,6 @@ public class InMemoryServiceDiscovery implements ServiceDiscovery {
 
     private Map<String, List<ServiceInstance>> repository = new HashMap<>();
 
-    private ServiceInstance serviceInstance;
-
-    private URL registryURL;
-
     @Override
     public Set<String> getServices() {
         return repository.keySet();
@@ -72,23 +68,12 @@ public class InMemoryServiceDiscovery implements ServiceDiscovery {
         return new DefaultPage<>(offset, pageSize, data, totalSize);
     }
 
-    @Override
-    public URL getUrl() {
-        return registryURL;
-    }
-
-    @Override
-    public ServiceInstance getLocalInstance() {
-        return serviceInstance;
-    }
-
     public String toString() {
         return "InMemoryServiceDiscovery";
     }
 
     @Override
     public void register(ServiceInstance serviceInstance) throws RuntimeException {
-        this.serviceInstance = serviceInstance;
         String serviceName = serviceInstance.getServiceName();
         List<ServiceInstance> serviceInstances = repository.computeIfAbsent(serviceName, s -> new LinkedList<>());
         if (!serviceInstances.contains(serviceInstance)) {
@@ -111,7 +96,7 @@ public class InMemoryServiceDiscovery implements ServiceDiscovery {
 
     @Override
     public void initialize(URL registryURL) throws Exception {
-        this.registryURL = registryURL;
+
     }
 
     @Override

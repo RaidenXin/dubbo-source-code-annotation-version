@@ -18,11 +18,9 @@ package org.apache.dubbo.registry.support;
 
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.utils.CollectionUtils;
-import org.apache.dubbo.config.ApplicationConfig;
 import org.apache.dubbo.metadata.WritableMetadataService;
 import org.apache.dubbo.registry.NotifyListener;
 import org.apache.dubbo.registry.client.ServiceDiscoveryRegistry;
-import org.apache.dubbo.rpc.model.ApplicationModel;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +38,6 @@ import static org.apache.dubbo.common.constants.CommonConstants.PROVIDER_SIDE;
 import static org.apache.dubbo.common.constants.RegistryConstants.REGISTRY_TYPE_KEY;
 import static org.apache.dubbo.common.constants.RegistryConstants.SERVICE_REGISTRY_TYPE;
 import static org.apache.dubbo.common.constants.RegistryConstants.SUBSCRIBED_SERVICE_NAMES_KEY;
-import static org.apache.dubbo.rpc.Constants.ID_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -54,7 +51,6 @@ public class ServiceOrientedRegistryTest {
 
     private static final URL registryURL = valueOf("in-memory://localhost:12345")
             .addParameter(REGISTRY_TYPE_KEY, SERVICE_REGISTRY_TYPE)
-            .addParameter(ID_KEY, "org.apache.dubbo.config.RegistryConfig#0")
             .addParameter(SUBSCRIBED_SERVICE_NAMES_KEY, "a, b , c,d,e ,");
 
     private static final String SERVICE_INTERFACE = "org.apache.dubbo.metadata.MetadataService";
@@ -85,7 +81,6 @@ public class ServiceOrientedRegistryTest {
         registry = ServiceDiscoveryRegistry.create(registryURL);
         metadataService = WritableMetadataService.getDefaultExtension();
         notifyListener = new MyNotifyListener();
-        ApplicationModel.getConfigManager().setApplication(new ApplicationConfig("Test"));
     }
 
     @Test

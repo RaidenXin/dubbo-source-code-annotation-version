@@ -86,10 +86,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.SHUTDOWN_WAIT_SE
 import static org.apache.dubbo.common.constants.CommonConstants.THREADPOOL_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.USERNAME_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.VERSION_KEY;
-import static org.apache.dubbo.common.constants.RegistryConstants.REGISTRY_DUPLICATE_KEY;
 import static org.apache.dubbo.common.constants.RegistryConstants.REGISTRY_KEY;
 import static org.apache.dubbo.common.constants.RegistryConstants.REGISTRY_PROTOCOL;
-import static org.apache.dubbo.common.constants.RegistryConstants.REGISTRY_TYPE_KEY;
 import static org.apache.dubbo.common.constants.RegistryConstants.SERVICE_REGISTRY_PROTOCOL;
 import static org.apache.dubbo.common.constants.RemotingConstants.BACKUP_KEY;
 import static org.apache.dubbo.common.extension.ExtensionLoader.getExtensionLoader;
@@ -172,31 +170,46 @@ public class ConfigValidationUtils {
         // check && override if necessary
         List<URL> registryList = new ArrayList<URL>();
         ApplicationConfig application = interfaceConfig.getApplication();
+        //获取所有的注册中心
         List<RegistryConfig> registries = interfaceConfig.getRegistries();
+        //遍历所有注册的注册中心
         if (CollectionUtils.isNotEmpty(registries)) {
             for (RegistryConfig config : registries) {
+                //获取 <dubbo:registry/> 的 address 属性
                 String address = config.getAddress();
+                //address 如果地址为空 设置为任意地址 0.0.0.0
                 if (StringUtils.isEmpty(address)) {
                     address = ANYHOST_VALUE;
                 }
+                //若地址不是 N/A 即不是直连方式
                 if (!RegistryConfig.NO_AVAILABLE.equalsIgnoreCase(address)) {
+                    //创建一个map 封装 URL的参数
                     Map<String, String> map = new HashMap<String, String>();
+                    //将 <dubbo:application/> 标签中的属性都添加到map中
                     AbstractConfig.appendParameters(map, application);
+                    //将 <dubbo:service/> 标签中的属性都添加到map中
                     AbstractConfig.appendParameters(map, config);
                     map.put(PATH_KEY, RegistryService.class.getName());
+                    //将运行时 服务状态信息放入map中 包含 dubbo的协议版本 版本号，时间戳 进程ID
                     AbstractInterfaceConfig.appendRuntimeParameters(map);
+                    //如果没有添加协议 就默认为dubbo协议
                     if (!map.containsKey(PROTOCOL_KEY)) {
                         map.put(PROTOCOL_KEY, DUBBO_PROTOCOL);
                     }
+                    //构建出zk协议的注册中心URL列表
                     List<URL> urls = UrlUtils.parseURLs(address, map);
-
+                    //将非标的注册中心地址,格式化为标准的地址
+                    //非标地址: zookeeper://xxxx
+                    //标准地址: registry://xxxx...?.... registry=zookeeper
                     for (URL url : urls) {
 
                         url = URLBuilder.from(url)
                                 .addParameter(REGISTRY_KEY, url.getProtocol())
                                 .setProtocol(extractRegistryType(url))
                                 .build();
+                        //如果是服务生产者，且该生产者还需要注册 即register属性为true
                         if ((provider && url.getParameter(REGISTER_KEY, true))
+                                //或者当前不是服务提供者，但是它是可以订阅的 即URL中 subscribe 参数为 true，就将这个URL地址对外公开
                                 || (!provider && url.getParameter(SUBSCRIBE_KEY, true))) {
                             registryList.add(url);
                         }
@@ -204,33 +217,7 @@ public class ConfigValidationUtils {
                 }
             }
         }
-        return genCompatibleRegistries(registryList, provider);
-    }
-
-    private static List<URL> genCompatibleRegistries(List<URL> registryList, boolean provider) {
-        List<URL> result = new ArrayList<>(registryList.size());
-        registryList.forEach(registryURL -> {
-            result.add(registryURL);
-            if (provider) {
-                // for registries enabled service discovery, automatically register interface compatible addresses.
-                if (SERVICE_REGISTRY_PROTOCOL.equals(registryURL.getProtocol())
-                        && registryURL.getParameter(REGISTRY_DUPLICATE_KEY, false)
-                        && registryNotExists(registryURL, registryList, REGISTRY_PROTOCOL)) {
-                    URL interfaceCompatibleRegistryURL = URLBuilder.from(registryURL)
-                            .setProtocol(REGISTRY_PROTOCOL)
-                            .removeParameter(REGISTRY_TYPE_KEY)
-                            .build();
-                    result.add(interfaceCompatibleRegistryURL);
-                }
-            }
-        });
-        return result;
-    }
-
-    private static boolean registryNotExists(URL registryURL, List<URL> registryList, String registryType) {
-        return registryList.stream().noneMatch(
-                url -> registryType.equals(url.getProtocol()) && registryURL.getBackupAddress().equals(url.getBackupAddress())
-        );
+        return registryList;
     }
 
     public static URL loadMonitor(AbstractInterfaceConfig interfaceConfig, URL registryURL) {

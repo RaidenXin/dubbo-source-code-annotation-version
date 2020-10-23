@@ -51,7 +51,6 @@ public class ApplicationBuilder extends AbstractBuilder<ApplicationConfig, Appli
     private Boolean qosAcceptForeignIp;
     private Map<String, String> parameters;
     private String shutwait;
-    private Integer metadataServicePort;
 
     public static ApplicationBuilder newBuilder() {
         return new ApplicationBuilder();
@@ -173,11 +172,6 @@ public class ApplicationBuilder extends AbstractBuilder<ApplicationConfig, Appli
         return getThis();
     }
 
-    public ApplicationBuilder metadataServicePort(Integer metadataServicePort) {
-        this.metadataServicePort = metadataServicePort;
-        return getThis();
-    }
-
     public ApplicationConfig build() {
         ApplicationConfig config = new ApplicationConfig();
         super.build(config);
@@ -199,7 +193,6 @@ public class ApplicationBuilder extends AbstractBuilder<ApplicationConfig, Appli
         config.setQosEnable(this.qosEnable);
         config.setQosPort(this.qosPort);
         config.setQosAcceptForeignIp(this.qosAcceptForeignIp);
-        config.setMetadataServicePort(this.metadataServicePort);
         config.setParameters(this.parameters);
         if (!StringUtils.isEmpty(shutwait)) {
             config.setShutwait(shutwait);

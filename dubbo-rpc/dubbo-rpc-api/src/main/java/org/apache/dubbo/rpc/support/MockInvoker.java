@@ -110,7 +110,9 @@ final public class MockInvoker<T> implements Invoker<T> {
         if (StringUtils.isBlank(mock)) {
             throw new RpcException(new IllegalAccessException("mock can not be null. url :" + url));
         }
+        //规范化 mock的值
         mock = normalizeMock(URL.decode(mock));
+        //如果 mock 以 return 开头 的处理方法
         if (mock.startsWith(RETURN_PREFIX)) {
             mock = mock.substring(RETURN_PREFIX.length()).trim();
             try {
@@ -122,6 +124,7 @@ final public class MockInvoker<T> implements Invoker<T> {
                         + ", mock:" + mock + ", url: " + url, ew);
             }
         } else if (mock.startsWith(THROW_PREFIX)) {
+            //如果 mock 以 throw 开头 的处理方法 就是直接抛出错误
             mock = mock.substring(THROW_PREFIX.length()).trim();
             if (StringUtils.isBlank(mock)) {
                 throw new RpcException("mocked exception for service degradation.");
@@ -129,7 +132,9 @@ final public class MockInvoker<T> implements Invoker<T> {
                 Throwable t = getThrowable(mock);
                 throw new RpcException(RpcException.BIZ_EXCEPTION, t);
             }
-        } else { //impl mock
+        } else {
+            //impl mock
+            //这里是本地自己实现降级类的处理方法
             try {
                 Invoker<T> invoker = getInvoker(mock);
                 return invoker.invoke(invocation);
@@ -162,14 +167,17 @@ final public class MockInvoker<T> implements Invoker<T> {
 
     @SuppressWarnings("unchecked")
     private Invoker<T> getInvoker(String mockService) {
+        //从缓存中获取
         Invoker<T> invoker = (Invoker<T>) MOCK_MAP.get(mockService);
         if (invoker != null) {
             return invoker;
         }
-
+        //获取接口 class
         Class<T> serviceType = (Class<T>) ReflectUtils.forName(url.getServiceInterface());
         T mockObject = (T) getMockObject(mockService, serviceType);
+        //包装 mockObject
         invoker = PROXY_FACTORY.getInvoker(mockObject, serviceType, url);
+        //放入缓存
         if (MOCK_MAP.size() < 10000) {
             MOCK_MAP.put(mockService, invoker);
         }
@@ -180,11 +188,13 @@ final public class MockInvoker<T> implements Invoker<T> {
     public static Object getMockObject(String mockService, Class serviceType) {
         boolean isDefault = ConfigUtils.isDefault(mockService);
         if (isDefault) {
+            //拼接本地降级类的类名 直接在接口名称后面加上 Mock
             mockService = serviceType.getName() + "Mock";
         }
 
         Class<?> mockClass;
         try {
+            //通过类名获取 class类对象
             mockClass = ReflectUtils.forName(mockService);
         } catch (Exception e) {
             if (!isDefault) {// does not check Spring bean if it is default config.
@@ -206,6 +216,7 @@ final public class MockInvoker<T> implements Invoker<T> {
         }
 
         try {
+            //直接调用无参构造方法创建降级对象实例
             return mockClass.newInstance();
         } catch (InstantiationException e) {
             throw new IllegalStateException("No default constructor from mock class " + mockClass.getName(), e);
