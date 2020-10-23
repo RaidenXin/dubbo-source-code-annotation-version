@@ -33,26 +33,37 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RoundRobinLoadBalance extends AbstractLoadBalance {
     public static final String NAME = "roundrobin";
 
+    //回收时间是60秒
     private static final int RECYCLE_PERIOD = 60000;
 
     protected static class WeightedRoundRobin {
+        //主机权重
         private int weight;
+        //方法权重 动态值 默认是0 这个是轮询的重点属性
         private AtomicLong current = new AtomicLong(0);
         private long lastUpdate;
 
+        //获取主机权重
         public int getWeight() {
             return weight;
         }
 
+        /**
+         * 初始化主机权重 和 方法权重
+         * @param weight
+         */
         public void setWeight(int weight) {
             this.weight = weight;
             current.set(0);
         }
 
+        //增加方法权重,每一次增加一个主机权重
         public long increaseCurrent() {
             return current.addAndGet(weight);
         }
 
+        //减小方法权重，减去所有的 invoker 的权重之和
+        //目的是让当前的方法权重变为最小权重
         public void sel(int total) {
             current.addAndGet(-1 * total);
         }
@@ -66,6 +77,13 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
         }
     }
 
+    /**
+     * 方法权重Map
+     * Key：全限定方法名
+     * Value:Map
+     * 内层map：Key： 主机信息 ip:prot/接口名称
+     * 内层map：Value： 轮询权重
+     */
     private ConcurrentMap<String, ConcurrentMap<String, WeightedRoundRobin>> methodWeightMap = new ConcurrentHashMap<String, ConcurrentMap<String, WeightedRoundRobin>>();
 
     /**
@@ -92,6 +110,7 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
         //获取 OR 创建 方法权重缓存
         ConcurrentMap<String, WeightedRoundRobin> map = methodWeightMap.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
         int totalWeight = 0;
+        //最大方法权重
         long maxCurrent = Long.MIN_VALUE;
         long now = System.currentTimeMillis();
         Invoker<T> selectedInvoker = null;
@@ -114,23 +133,26 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
                 //将其设置为最新的权重
                 weightedRoundRobin.setWeight(weight);
             }
-            //将原先存的值再加上一个权重值得到的新值
-            //这个是权重轮询的关键点
+            //增加方法权重 方法权重增加的值是 weight
+            //这个是权重轮询的关键点，weight 越大轮询越快，选中的次数就多
             long cur = weightedRoundRobin.increaseCurrent();
             //设置最后更新时间
             weightedRoundRobin.setLastUpdate(now);
-            //
+            //比较获取最大方法权重的 invoker
             if (cur > maxCurrent) {
                 maxCurrent = cur;
                 selectedInvoker = invoker;
                 selectedWRR = weightedRoundRobin;
             }
+            //所有 invoker 权重的和
             totalWeight += weight;
         }
         if (invokers.size() != map.size()) {
+            //删除已经过期的权重
             map.entrySet().removeIf(item -> now - item.getValue().getLastUpdate() > RECYCLE_PERIOD);
         }
         if (selectedInvoker != null) {
+            //减少方法权重 如果被选中一次，就要降低其方法权重让其他 invoker 有机会被选中
             selectedWRR.sel(totalWeight);
             return selectedInvoker;
         }
