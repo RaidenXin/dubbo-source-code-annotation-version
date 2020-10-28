@@ -318,7 +318,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         ServiceDescriptor serviceDescriptor = repository.registerService(getInterfaceClass());
         //注册服务生产者 将服务实例放入 ServiceRepository 中的 providers 和 providersWithoutGroup 缓存中
         repository.registerProvider(
-                //当前服务提供者的唯一标识 和下面有点类型 只是path 换成了接口名称
+                //当前服务提供者的唯一标识 和下面有点类似 只是path 换成了接口名称
                 getUniqueServiceName(),
                 //服务实例
                 ref,
