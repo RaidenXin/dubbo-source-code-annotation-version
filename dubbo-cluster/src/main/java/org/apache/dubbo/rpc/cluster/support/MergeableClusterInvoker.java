@@ -128,11 +128,13 @@ public class MergeableClusterInvoker<T> extends AbstractClusterInvoker<T> {
         }
 
         //处理合并规则
-        //如果是以 . 开头的 就是说明是用指定方法合并 去掉点获取方法名称
+        //如果是以 . 开头的 就是说明是使用指定方法合并 去掉 . 获取方法名称
         if (merger.startsWith(".")) {
             merger = merger.substring(1);
             Method method;
             try {
+                //这里返回类型可能是某种集合
+                //通过方法名称和返回类型 从返回类型上获取用来 合并结果集的方法
                 method = returnType.getMethod(merger, returnType);
             } catch (NoSuchMethodException e) {
                 throw new RpcException("Can not merge result because missing method [ " + merger + " ] in class [ " +
