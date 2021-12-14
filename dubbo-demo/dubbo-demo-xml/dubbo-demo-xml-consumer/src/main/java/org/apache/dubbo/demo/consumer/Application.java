@@ -16,11 +16,15 @@
  */
 package org.apache.dubbo.demo.consumer;
 
+import org.apache.commons.lang3.ThreadUtils;
 import org.apache.dubbo.demo.DemoService;
 
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
+import java.sql.Time;
+import java.util.Timer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 public class Application {
     /**
@@ -31,7 +35,13 @@ public class Application {
         ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("spring/dubbo-consumer.xml");
         context.start();
         DemoService demoService = context.getBean("demoService", DemoService.class);
-        CompletableFuture<String> hello = demoService.sayHelloAsync("world");
-        System.out.println("----------------------------------------------------------result: " + hello.get());
+        for (;;) {
+            CompletableFuture<String> hello = demoService.sayHelloAsync("world");
+            System.out.println("----------------------------------------------------------sayHelloAsync result: " + hello.get());
+            String str = demoService.sayHello("world");
+            System.out.println("----------------------------------------------------------sayHello result: " + str);
+            try { TimeUnit.SECONDS.sleep(2); ;
+            } catch (InterruptedException ie){}
+        }
     }
 }

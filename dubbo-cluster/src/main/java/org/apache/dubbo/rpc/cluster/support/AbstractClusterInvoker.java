@@ -283,7 +283,7 @@ public abstract class AbstractClusterInvoker<T> implements ClusterInvoker<T> {
         if (contextAttachments != null && contextAttachments.size() != 0) {
             ((RpcInvocation) invocation).addObjectAttachments(contextAttachments);
         }
-        // 获取服务提供者代理实例列表
+        // 获取服务提供者代理实例列表 这里会经过路由规则过滤
         List<Invoker<T>> invokers = list(invocation);
         // 获取负载均衡实例
         LoadBalance loadbalance = initLoadBalance(invokers, invocation);
@@ -321,7 +321,8 @@ public abstract class AbstractClusterInvoker<T> implements ClusterInvoker<T> {
                                        LoadBalance loadbalance) throws RpcException;
 
     protected List<Invoker<T>> list(Invocation invocation) throws RpcException {
-        // 调用 Directory 的 list 方法列举 Invoker
+        // 调用 目录Directory 的 list 方法列举 Invoker
+        // AbstractDirectory.list
         return directory.list(invocation);
     }
 

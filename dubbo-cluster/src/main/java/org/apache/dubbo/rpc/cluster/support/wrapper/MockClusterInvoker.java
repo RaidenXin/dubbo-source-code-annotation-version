@@ -81,12 +81,12 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
         Result result = null;
-        //获取 mock 值
+        //获取 mock(降级) 值
         String value = getUrl().getMethodParameter(invocation.getMethodName(), MOCK_KEY, Boolean.FALSE.toString()).trim();
-        //如果没有设置 mock 属性 或者 mock 属性为 false 就不存在服务降级
+        //如果没有设置 mock 属性 或者 mock(降级) 属性为 false 就不存在服务降级
         if (value.length() == 0 || "false".equalsIgnoreCase(value)) {
             //no mock
-            // 无 mock 逻辑，直接调用其他 Invoker 对象的 invoke 方法，
+            // 无 mock(降级) 逻辑，直接调用其他 Invoker 对象的 invoke 方法，
             // 比如 FailoverClusterInvoker
             result = this.invoker.invoke(invocation);
         } else if (value.startsWith("force")) {
@@ -99,7 +99,7 @@ public class MockClusterInvoker<T> implements ClusterInvoker<T> {
             result = doMockInvoke(invocation, null);
         } else {
             //fail-mock
-            // fail:xxx 表示消费方对调用服务失败后，再执行 mock 逻辑，不抛出异常
+            // fail:xxx 表示消费方对调用服务失败后，再执行 mock(降级) 逻辑，不抛出异常
             //当远程调用失败的时候 会自动进行降级
             try {
                 //远程调用

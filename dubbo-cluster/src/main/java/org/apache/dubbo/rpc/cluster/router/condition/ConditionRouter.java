@@ -246,6 +246,7 @@ public class ConditionRouter extends AbstractRouter {
         // 将服务提供者或消费者 url 转成 Map
         Map<String, String> sample = url.toMap();
         boolean result = false;
+        //这里是路由一个很关键的环节 遍历选择条件 然后从URL中获取相同的key的属性 进行对比
         for (Map.Entry<String, MatchPair> matchPair : condition.entrySet()) {
             String key = matchPair.getKey();
             String sampleValue;
